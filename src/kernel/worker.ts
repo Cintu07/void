@@ -6,6 +6,8 @@
  * 
  * CRITICAL: This worker has access to the VirtualDisk (file system).
  * All file operations happen here, not on the main thread.
+ * 
+ * Version: 1.1.0 (Updated: Dec 6, 2025 - Fixed terminal formatting)
  */
 
 // TypeScript declaration for worker global scope
@@ -17,8 +19,46 @@ declare const self: WorkerGlobalScope & {
 import { getDisk } from '../fs/VirtualDisk';
 import type { KernelCommand, KernelResponse } from './types';
 
+console.log('[Worker] VOID Kernel Worker v1.1.0 - Terminal formatting fixed');
 const fs = getDisk();
 let pyodideReady = false;
+
+/**
+ * Output Batcher
+ * Prevents write amplification by batching high-frequency stdout
+ * into single messages every 16ms (1 animation frame)
+ */
+class OutputBatcher {
+  private buffer: string[] = [];
+  private timeoutId: any = null;
+
+  write(text: string) {
+    // Store text as-is, terminal already handles line breaks
+    this.buffer.push(text);
+
+    // If no flush is scheduled, schedule one
+    if (this.timeoutId === null) {
+      this.timeoutId = setTimeout(() => {
+        this.flush();
+      }, 16); // ~60fps
+    }
+  }
+
+  flush() {
+    if (this.buffer.length === 0) return;
+
+    const combined = this.buffer.join('');
+    this.buffer = [];
+    this.timeoutId = null;
+
+    self.postMessage({
+      type: 'TERMINAL_OUTPUT',
+      payload: combined,
+    });
+  }
+}
+
+const outputBatcher = new OutputBatcher();
 
 // Worker message handler
 self.onmessage = async (event: MessageEvent<KernelCommand>) => {
@@ -51,14 +91,19 @@ self.onmessage = async (event: MessageEvent<KernelCommand>) => {
         // Load Pyodide from CDN
         importScripts('https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js');
 
-        // Initialize Pyodide with stdout redirection
-        self.pyodide = await self.loadPyodide({
+        // Initialize Pyodide with stdout handler
+        // @ts-ignore
+        self.pyodide = await loadPyodide({
           stdout: (text: string) => {
-            self.postMessage({
-              type: 'TERMINAL_OUTPUT',
-              payload: text,
-            });
-          },
+            // 👇 THIS FIXES THE "Line 0Line 1" BUG 👇
+            // We force every new line (\n) to become a real terminal new line (\r\n)
+            const formatted = text.replace(/\n/g, '\r\n');
+            
+            // Add a newline at the end if it's missing (Python print usually has it, but better safe)
+            const finalOutput = formatted.endsWith('\r\n') ? formatted : formatted + '\r\n';
+            
+            self.postMessage({ type: 'TERMINAL_OUTPUT', payload: finalOutput });
+          }
         });
 
         pyodideReady = true;
