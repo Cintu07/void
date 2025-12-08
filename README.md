@@ -96,6 +96,9 @@ VOID IDE implements a four-layer architecture that mimics a traditional operatin
 - **Engine**: WebLLM (MLC-LLM) with WebGPU acceleration
 - **Worker**: Separate AI worker for non-blocking inference
 - **Features**: Streaming responses, progress tracking, model caching
+- **Graceful Fallback**: Auto-detects restricted environments (Incognito mode, privacy browsers)
+  - Try 1: Persistent cache via IndexedDB
+  - Try 2: RAM-only mode if IDBFS mount fails
 - **Commands**: `BOOT_AI`, `GENERATE`
 - **Hook**: `useAI()` for AI lifecycle management
 
@@ -262,13 +265,31 @@ npm run dev
 4. If stuck, refresh page and try again
 5. Ensure stable internet (4GB download)
 
+### "Unable to add filesystem" Error (Incognito Mode)
+
+**Problem**: `Unable to add filesystem: <illegal path>` appears in console during AI boot
+
+**Cause**: Browser is in Incognito/Private mode or has strict storage policies blocking IndexedDB
+
+**Solution**: This is handled automatically!
+- The AI worker detects the error and falls back to **RAM-only mode**
+- Model still downloads and works normally
+- Trade-off: Model is NOT cached (will re-download on page refresh)
+- Look for `[RAM-only]` prefix in progress messages
+
+**To enable persistent cache:**
+1. Exit Incognito/Private mode
+2. Use regular browser window
+3. Check browser storage settings allow IndexedDB
+
 ## Known Issues
 
 1. **Window vs GlobalThis**: Workers don't have `window` object. Use `globalThis` for cross-environment compatibility.
 2. **Hot Reload**: React Fast Refresh may require full page reload when worker code changes.
 3. **Source Maps**: Next.js may show source map warnings for worker files.
 4. **GPU Requirement**: AI features require WebGPU-compatible GPU (not available on all systems).
-5. **Model Size**: First-time AI activation downloads 4GB (cached for subsequent use).
+5. **Model Size**: First-time AI activation downloads 4GB (cached for subsequent use, unless in RAM-only mode).
+6. **Incognito Mode**: AI works but switches to RAM-only mode (no persistent cache, re-downloads on refresh).
 
 ## Performance Notes
 
@@ -283,6 +304,9 @@ npm run dev
 - **Model Load**: 30-60 seconds (4GB download + initialization)
 - **Token Speed**: 10-50 tokens/sec (GPU-dependent)
 - **Memory**: ~4.5GB VRAM required
+- **Cache Modes**:
+  - **Persistent**: Model cached in IndexedDB, instant load on subsequent visits
+  - **RAM-only**: Model discarded on page close, re-downloads every time (Incognito mode)
 
 ## Contributing
 

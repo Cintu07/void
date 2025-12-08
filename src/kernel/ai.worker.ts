@@ -7,15 +7,16 @@
  * Model: Llama-3-8B-Instruct-q4f32_1-MLC (4GB)
  * Engine: WebLLM (MLC-LLM)
  * 
- * Version: 3.0.0 (Dec 6, 2025 - GPU mode)
+ * Version: 3.1.0 (Dec 8, 2025 - GPU mode with cache fallback)
  */
 
 import * as webllm from '@mlc-ai/web-llm';
 
 let engine: webllm.MLCEngine | null = null;
 let isBooting = false;
+let cacheMode: 'persistent' | 'ram-only' = 'persistent';
 
-console.log('[AI Worker] VOID AI Worker v3.0.0 - GPU mode initialized');
+console.log('[AI Worker] VOID AI Worker v3.1.0 - GPU mode initialized');
 
 // Message types
 interface AICommand {
@@ -26,6 +27,104 @@ interface AICommand {
 interface AIResponse {
   type: 'RESPONSE' | 'PROGRESS' | 'AI_OUTPUT' | 'ERROR';
   payload: any;
+}
+
+/**
+ * Boot engine with graceful fallback for restricted environments
+ * Try 1: Persistent cache (IndexedDB)
+ * Try 2: RAM-only mode (if IDBFS mount fails)
+ */
+async function bootEngine(
+  selectedModel: string,
+  progressCallback: (report: webllm.InitProgressReport) => void
+): Promise<webllm.MLCEngine> {
+  
+  // Try 1: Standard mode with persistent cache
+  try {
+    console.log('[AI Worker] Attempting boot with persistent cache...');
+    
+    const engine = await webllm.CreateMLCEngine(selectedModel, {
+      initProgressCallback: (report) => {
+        // Prefix with cache mode indicator
+        const modifiedReport = {
+          ...report,
+          text: `[Cached] ${report.text}`,
+        };
+        progressCallback(modifiedReport);
+      },
+    });
+    
+    cacheMode = 'persistent';
+    console.log('[AI Worker] Boot successful with persistent cache');
+    return engine;
+    
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.warn('[AI Worker] Persistent cache failed:', errorMsg);
+    
+    // Check if error is IDBFS-related
+    const isStorageError = 
+      errorMsg.includes('filesystem') ||
+      errorMsg.includes('mount') ||
+      errorMsg.includes('IDBFS') ||
+      errorMsg.includes('IndexedDB') ||
+      errorMsg.includes('illegal path');
+    
+    if (!isStorageError) {
+      // Not a storage issue, rethrow
+      throw error;
+    }
+    
+    // Try 2: Fallback to RAM-only mode
+    console.log('[AI Worker] Falling back to RAM-only mode (Incognito/Privacy mode detected)');
+    
+    // Send warning to UI
+    self.postMessage({
+      type: 'PROGRESS',
+      payload: {
+        text: '[Warning] Persistent cache unavailable. Using RAM-only mode...',
+        progress: 0.05,
+      },
+    });
+    
+    try {
+      const engine = await webllm.CreateMLCEngine(selectedModel, {
+        initProgressCallback: (report) => {
+          // Prefix with RAM-only indicator
+          const modifiedReport = {
+            ...report,
+            text: `[RAM-only] ${report.text}`,
+          };
+          progressCallback(modifiedReport);
+        },
+        appConfig: {
+          useIndexedDBCache: false, // Disable IndexedDB
+        },
+      });
+      
+      cacheMode = 'ram-only';
+      console.log('[AI Worker] Boot successful in RAM-only mode');
+      
+      // Warn user about implications
+      self.postMessage({
+        type: 'PROGRESS',
+        payload: {
+          text: '[Info] RAM-only mode: Model will re-download on page refresh',
+          progress: 0.1,
+        },
+      });
+      
+      return engine;
+      
+    } catch (ramError) {
+      console.error('[AI Worker] RAM-only mode also failed:', ramError);
+      throw new Error(
+        `Failed to initialize AI in both persistent and RAM-only modes. ` +
+        `Original error: ${errorMsg}. ` +
+        `Fallback error: ${ramError instanceof Error ? ramError.message : String(ramError)}`
+      );
+    }
+  }
 }
 
 // Worker message handler
@@ -66,28 +165,23 @@ self.onmessage = async (event: MessageEvent<AICommand>) => {
         });
 
         try {
-          // Initialize WebLLM engine with progress callback
           const selectedModel = 'Llama-3-8B-Instruct-q4f32_1-MLC';
           
           const initProgressCallback = (report: webllm.InitProgressReport) => {
             console.log('[AI Worker] Progress:', report);
             
-            let progressPercent = report.progress;
-            let progressText = report.text;
-            
-            // Send progress updates to UI
+            // Send progress updates to UI (already prefixed by bootEngine)
             self.postMessage({
               type: 'PROGRESS',
               payload: {
-                text: progressText,
-                progress: progressPercent,
+                text: report.text,
+                progress: report.progress,
               },
             });
           };
 
-          engine = await webllm.CreateMLCEngine(selectedModel, {
-            initProgressCallback: initProgressCallback,
-          });
+          // Use graceful fallback boot
+          engine = await bootEngine(selectedModel, initProgressCallback);
 
           console.log('[AI Worker] Engine initialized successfully');
         } catch (error) {
@@ -98,15 +192,19 @@ self.onmessage = async (event: MessageEvent<AICommand>) => {
 
         isBooting = false;
 
-        // Send completion
+        // Send completion with cache mode info
+        const cacheInfo = cacheMode === 'persistent' 
+          ? '(Model cached for future use)' 
+          : '(RAM-only: Will re-download on refresh)';
+        
         self.postMessage({
           type: 'PROGRESS',
-          payload: { text: 'Model loaded!', progress: 1 }
+          payload: { text: `Model loaded! ${cacheInfo}`, progress: 1 }
         });
 
         const response: AIResponse = {
           type: 'RESPONSE',
-          payload: 'AI Brain activated! Llama-3 ready (GPU mode).',
+          payload: `AI Brain activated! Llama-3 ready (GPU mode, ${cacheMode}).`,
         };
         self.postMessage(response);
         break;
