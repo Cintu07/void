@@ -241,9 +241,33 @@ self.onmessage = async (event: MessageEvent<AICommand>) => {
           engine = await bootEngine(selectedModel, initProgressCallback);
 
           console.log('[AI Worker] Engine initialized successfully');
+          
+          // Verify engine is still valid after initialization
+          if (!engine) {
+            throw new Error('Engine initialized but became null');
+          }
+          
         } catch (error) {
           console.error('[AI Worker] Engine initialization error:', error);
           isBooting = false;
+          
+          // Clean up any partial state
+          engine = null;
+          
+          // Check if it's the WASM instance error
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          if (errorMsg.includes('external Instance reference') || errorMsg.includes('WASM')) {
+            throw new Error(
+              `WebGPU/WASM initialization failed. This can happen on systems with limited GPU support.\n\n` +
+              `Try:\n` +
+              `1. Refresh the page and try again\n` +
+              `2. Close other GPU-heavy tabs/apps\n` +
+              `3. Restart your browser\n` +
+              `4. Update your GPU drivers\n\n` +
+              `Original error: ${errorMsg}`
+            );
+          }
+          
           throw error;
         }
 
@@ -275,9 +299,10 @@ self.onmessage = async (event: MessageEvent<AICommand>) => {
         const { prompt } = payload as { prompt: string };
         
         console.log('[AI Worker] Generating response for:', prompt);
-
-        // Format messages for Llama-3
-        const messages: webllm.ChatCompletionMessageParam[] = [
+        
+        try {
+          // Format messages for Llama-3
+          const messages: webllm.ChatCompletionMessageParam[] = [
           { role: 'system', content: 'You are a helpful Python coding assistant.' },
           { role: 'user', content: prompt },
         ];
@@ -311,6 +336,20 @@ self.onmessage = async (event: MessageEvent<AICommand>) => {
           payload: fullResponse,
         };
         self.postMessage(finalResponse);
+        
+        } catch (genError) {
+          console.error('[AI Worker] Generation error:', genError);
+          
+          const errorMsg = genError instanceof Error ? genError.message : String(genError);
+          if (errorMsg.includes('external Instance reference') || errorMsg.includes('WASM')) {
+            throw new Error(
+              `AI engine lost connection. The model may be corrupted or GPU memory exhausted.\n\n` +
+              `Please refresh the page and activate the AI brain again.`
+            );
+          }
+          
+          throw genError;
+        }
         break;
       }
 
@@ -327,6 +366,12 @@ self.onmessage = async (event: MessageEvent<AICommand>) => {
     self.postMessage(errorResponse);
     
     isBooting = false;
+    
+    // If it's a WASM error, clear the engine to force re-initialization
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    if (errorMsg.includes('external Instance reference') || errorMsg.includes('WASM')) {
+      engine = null;
+    }
   }
 };
 
