@@ -195,8 +195,8 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-black text-green-400 font-mono p-4">
       <div className="mb-4">
-        <h1 className="text-2xl font-bold mb-2">VOID IDE - PHASE 6: AI BRAIN</h1>
-        <p className="text-sm text-gray-500">Status: {status}</p>
+        <h1 className="text-2xl font-bold mb-2">VOID IDE</h1>
+        <p className="text-sm text-gray-500">{status}</p>
         
         {/* AI Loading Progress */}
         {!ai.isReady && ai.loadingProgress.progress >= 0 && (
@@ -215,8 +215,8 @@ export default function Home() {
         )}
       </div>
 
-      <div className="grid grid-cols-[60%_40%] gap-4 h-[calc(100vh-140px)]">
-        {/* Left: Monaco Editor (60%) */}
+      <div className="grid grid-cols-2 gap-4 h-[calc(100vh-140px)]">
+        {/* Left: Monaco Editor (50%) */}
         <div className="border border-green-700 rounded overflow-hidden">
           <CodeEditor 
             initialCode={pythonCode} 
@@ -224,9 +224,35 @@ export default function Home() {
           />
         </div>
 
-        {/* Right: Terminal (40%) */}
-        <div className="border border-green-700 rounded overflow-hidden flex flex-col">
-          <Terminal ref={terminalRef} />
+        {/* Right: Terminal + AI Chat (50%) */}
+        <div className="flex flex-col gap-4">
+          <div className="border border-green-700 rounded overflow-hidden flex-1">
+            <Terminal ref={terminalRef} />
+          </div>
+          
+          {/* AI Chat Box */}
+          {ai.isReady && (
+            <div className="border border-purple-500 rounded p-4 bg-gray-900 h-48 overflow-y-auto">
+              <div className="text-xs text-purple-400 mb-2">AI ASSISTANT</div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAskAI()}
+                  placeholder="Ask AI: 'Write a function to...', 'Explain this code', etc."
+                  className="flex-1 bg-black text-green-400 px-3 py-2 rounded border border-purple-700 focus:border-purple-500 focus:outline-none text-sm"
+                />
+                <button
+                  onClick={handleAskAI}
+                  disabled={!aiPrompt.trim()}
+                  className="bg-purple-500 text-white px-4 py-2 rounded font-bold hover:bg-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                >
+                  SEND
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -265,32 +291,12 @@ export default function Home() {
         </button>
       </div>
 
-      {/* Ask AI Input */}
-      {ai.isReady && (
-        <div className="mt-4 flex gap-2">
-          <input
-            type="text"
-            value={aiPrompt}
-            onChange={(e) => setAiPrompt(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleAskAI()}
-            placeholder="Ask AI: e.g., 'Write a Python loop that prints 1-10'"
-            className="flex-1 bg-gray-900 text-green-400 px-4 py-2 rounded border border-gray-700 focus:border-purple-500 focus:outline-none"
-          />
-          <button
-            onClick={handleAskAI}
-            disabled={!aiPrompt.trim()}
-            className="bg-purple-500 text-white px-6 py-2 rounded font-bold hover:bg-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            ASK AI
-          </button>
-        </div>
-      )}
-
       <div className="mt-4 text-xs text-gray-600">
-        <div>→ Write Python code in Monaco Editor (left)</div>
-        <div>→ Click RUN to execute • Click SAVE to persist to /main.py</div>
-        <div>→ Click ACTIVATE BRAIN to download Llama-3-8B (4GB, one-time download, requires GPU)</div>
-        <div>→ Ask AI for help: "Write a function to...", "Explain this code", etc.</div>
+        <div className="mb-2 text-gray-500">VOID: The Zero-Trust Browser IDE</div>
+        <div>• Write code in Monaco Editor → Execute with RUN → Save to virtual filesystem</div>
+        <div>• ACTIVATE BRAIN downloads Llama-3 (4GB) to YOUR browser's storage (one-time, requires GPU)</div>
+        <div>• Your code, API keys, and AI models stay on YOUR device - never sent to our servers</div>
+        <div>• Fully offline-capable • Zero installation • Open source</div>
       </div>
     </div>
   );
