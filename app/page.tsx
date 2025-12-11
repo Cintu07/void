@@ -279,7 +279,7 @@ export default function Home() {
           disabled={ai.isReady}
           className="bg-purple-500 text-white px-6 py-3 rounded font-bold hover:bg-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {ai.isReady ? '🧠 BRAIN ACTIVE' : 'ACTIVATE BRAIN'}
+          {ai.isReady ? 'BRAIN ACTIVE' : 'ACTIVATE BRAIN'}
         </button>
         
         <button
