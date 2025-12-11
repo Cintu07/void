@@ -155,16 +155,19 @@ export default function Home() {
   const handleActivateBrain = async () => {
     try {
       setStatus('Activating AI Brain...');
-      terminalRef.current?.write(`\r\n Downloading Llama-3-8B (~4GB, GPU-accelerated)...\r\n`);
+      terminalRef.current?.write(`\r\n Checking GPU compatibility...\r\n`);
       
       const result = await ai.bootAI();
       
       setStatus('AI Brain Ready!');
       terminalRef.current?.write(`\r\n ${result}\r\n`);
     } catch (error) {
-      const errorMsg = `AI ERROR: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      setStatus(errorMsg);
-      terminalRef.current?.write(`\r\n✗ ${errorMsg}\r\n`);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      setStatus('AI Activation Failed');
+      
+      // Format multi-line error messages properly
+      const formattedError = errorMsg.split('\n').map(line => `\r\n${line}`).join('');
+      terminalRef.current?.write(`\r\n=== AI ACTIVATION FAILED ===${formattedError}\r\n`);
     }
   };
 

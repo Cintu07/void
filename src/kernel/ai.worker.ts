@@ -7,7 +7,7 @@
  * Model: Llama-3-8B-Instruct-q4f32_1-MLC (4GB)
  * Engine: WebLLM (MLC-LLM)
  * 
- * Version: 3.1.0 (Dec 8, 2025 - GPU mode with cache fallback)
+ * Version: 3.2.0 (Dec 11, 2025 - GPU detection + cache fallback)
  */
 
 import * as webllm from '@mlc-ai/web-llm';
@@ -16,7 +16,7 @@ let engine: webllm.MLCEngine | null = null;
 let isBooting = false;
 let cacheMode: 'persistent' | 'ram-only' = 'persistent';
 
-console.log('[AI Worker] VOID AI Worker v3.1.0 - GPU mode initialized');
+console.log('[AI Worker] VOID AI Worker v3.2.0 - GPU mode initialized');
 
 // Message types
 interface AICommand {
@@ -27,6 +27,37 @@ interface AICommand {
 interface AIResponse {
   type: 'RESPONSE' | 'PROGRESS' | 'AI_OUTPUT' | 'ERROR';
   payload: any;
+}
+
+/**
+ * Check WebGPU availability before attempting to load model
+ */
+async function checkWebGPUSupport(): Promise<{ supported: boolean; error?: string }> {
+  try {
+    if (!navigator.gpu) {
+      return {
+        supported: false,
+        error: 'WebGPU not available in this browser. Please use Chrome 113+ or Edge 113+.',
+      };
+    }
+
+    const adapter = await navigator.gpu.requestAdapter();
+    if (!adapter) {
+      return {
+        supported: false,
+        error: 'No compatible GPU found. Your GPU may not support WebGPU, or drivers need updating.',
+      };
+    }
+
+    console.log('[AI Worker] WebGPU adapter found:', adapter.name);
+    return { supported: true };
+    
+  } catch (error) {
+    return {
+      supported: false,
+      error: `WebGPU check failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 }
 
 /**
@@ -156,12 +187,38 @@ self.onmessage = async (event: MessageEvent<AICommand>) => {
 
         isBooting = true;
         
-        console.log('[AI Worker] BOOT_AI command received, starting download...');
+        console.log('[AI Worker] BOOT_AI command received, checking WebGPU support...');
 
-        // Send initial progress
+        // Step 1: Check WebGPU support first
         self.postMessage({
           type: 'PROGRESS',
-          payload: { text: 'Initializing WebGPU...', progress: 0.01 }
+          payload: { text: 'Checking GPU compatibility...', progress: 0.01 }
+        });
+
+        const gpuCheck = await checkWebGPUSupport();
+        if (!gpuCheck.supported) {
+          isBooting = false;
+          
+          // Send detailed error to UI
+          const errorMsg = 
+            `GPU NOT SUPPORTED\n\n` +
+            `${gpuCheck.error}\n\n` +
+            `Solutions:\n` +
+            `1. Update your browser to Chrome 113+ or Edge 113+\n` +
+            `2. Update GPU drivers from manufacturer website\n` +
+            `3. Check if your GPU supports WebGPU: https://webgpureport.org\n` +
+            `4. Use a different computer with a compatible GPU\n\n` +
+            `Note: The Python IDE will still work without AI features.`;
+          
+          throw new Error(errorMsg);
+        }
+
+        console.log('[AI Worker] WebGPU supported, proceeding with model download...');
+
+        // Step 2: Initialize WebGPU
+        self.postMessage({
+          type: 'PROGRESS',
+          payload: { text: 'Initializing WebGPU...', progress: 0.02 }
         });
 
         try {

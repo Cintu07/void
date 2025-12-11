@@ -272,12 +272,14 @@ npm run dev
 **Cause**: Browser is in Incognito/Private mode or has strict storage policies blocking IndexedDB
 
 **Solution**: This is handled automatically!
+
 - The AI worker detects the error and falls back to **RAM-only mode**
 - Model still downloads and works normally
 - Trade-off: Model is NOT cached (will re-download on page refresh)
 - Look for `[RAM-only]` prefix in progress messages
 
 **To enable persistent cache:**
+
 1. Exit Incognito/Private mode
 2. Use regular browser window
 3. Check browser storage settings allow IndexedDB
