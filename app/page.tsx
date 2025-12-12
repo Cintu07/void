@@ -13,7 +13,8 @@ export default function Home() {
   const [lastOutputIndex, setLastOutputIndex] = useState(0);
   const [aiPrompt, setAiPrompt] = useState<string>('');
   const kernel = useKernel();
-  const ai = useAI();
+  // const ai = useAI(); // DISABLED: AI feature unstable, will re-enable in future version
+  const ai = { isReady: false, loadingProgress: { progress: 0, text: '' }, bootAI: async () => {}, askAI: async () => {}, clearOutput: () => {} }; // Dummy AI object
   const terminalRef = useRef<TerminalHandle>(null);
   const editorValueRef = useRef<string>('');
 
@@ -197,22 +198,6 @@ export default function Home() {
       <div className="mb-4">
         <h1 className="text-2xl font-bold mb-2">VOID IDE</h1>
         <p className="text-sm text-gray-500">{status}</p>
-        
-        {/* AI Loading Progress */}
-        {!ai.isReady && ai.loadingProgress.progress >= 0 && (
-          <div className="mt-2">
-            <div className="text-xs text-gray-400 mb-1">{ai.loadingProgress.text}</div>
-            <div className="w-full bg-gray-800 rounded-full h-2">
-              <div
-                className="bg-purple-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${ai.loadingProgress.progress * 100}%` }}
-              />
-            </div>
-            <div className="text-xs text-gray-400 mt-1">
-              {Math.round(ai.loadingProgress.progress * 100)}% complete
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4 h-[calc(100vh-140px)]">
@@ -224,35 +209,9 @@ export default function Home() {
           />
         </div>
 
-        {/* Right: Terminal + AI Chat (50%) */}
-        <div className="flex flex-col gap-4">
-          <div className="border border-green-700 rounded overflow-hidden flex-1">
-            <Terminal ref={terminalRef} />
-          </div>
-          
-          {/* AI Chat Box */}
-          {ai.isReady && (
-            <div className="border border-purple-500 rounded p-4 bg-gray-900 h-48 overflow-y-auto">
-              <div className="text-xs text-purple-400 mb-2">AI ASSISTANT</div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={aiPrompt}
-                  onChange={(e) => setAiPrompt(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleAskAI()}
-                  placeholder="Ask AI: 'Write a function to...', 'Explain this code', etc."
-                  className="flex-1 bg-black text-green-400 px-3 py-2 rounded border border-purple-700 focus:border-purple-500 focus:outline-none text-sm"
-                />
-                <button
-                  onClick={handleAskAI}
-                  disabled={!aiPrompt.trim()}
-                  className="bg-purple-500 text-white px-4 py-2 rounded font-bold hover:bg-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-                >
-                  SEND
-                </button>
-              </div>
-            </div>
-          )}
+        {/* Right: Terminal (50%) */}
+        <div className="border border-green-700 rounded overflow-hidden flex flex-col">
+          <Terminal ref={terminalRef} />
         </div>
       </div>
 
@@ -275,14 +234,6 @@ export default function Home() {
         </button>
         
         <button
-          onClick={handleActivateBrain}
-          disabled={ai.isReady}
-          className="bg-purple-500 text-white px-6 py-3 rounded font-bold hover:bg-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {ai.isReady ? 'BRAIN ACTIVE' : 'ACTIVATE BRAIN'}
-        </button>
-        
-        <button
           onClick={handleWriteFile}
           disabled={!kernel.isReady}
           className="bg-green-400 text-black px-6 py-3 rounded font-bold hover:bg-green-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -292,11 +243,11 @@ export default function Home() {
       </div>
 
       <div className="mt-4 text-xs text-gray-600">
-        <div className="mb-2 text-gray-500">VOID: The Zero-Trust Browser IDE</div>
-        <div>• Write code in Monaco Editor → Execute with RUN → Save to virtual filesystem</div>
-        <div>• ACTIVATE BRAIN downloads Llama-3 (4GB) to YOUR browser's storage (one-time, requires GPU)</div>
-        <div>• Your code, API keys, and AI models stay on YOUR device - never sent to our servers</div>
+        <div className="mb-2 text-gray-500 font-bold">VOID: The Zero-Trust Browser IDE</div>
+        <div>• Write Python code in Monaco Editor → Execute with RUN → Save to IndexedDB</div>
+        <div>• Your code and files stay on YOUR device - never sent to any servers</div>
         <div>• Fully offline-capable • Zero installation • Open source</div>
+        <div className="mt-2 text-gray-700">Powered by: Pyodide (Python), Monaco Editor, XTerm.js, IndexedDB</div>
       </div>
     </div>
   );
