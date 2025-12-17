@@ -1,13 +1,13 @@
 /**
  * AI Web Worker
  * 
- * Runs LLM via WebGPU in a separate thread
+ * Runs LLM in a separate thread (GPU or CPU mode)
  * to avoid blocking the UI or Python Kernel.
  * 
- * Model: Llama-3-8B-Instruct-q4f32_1-MLC (4GB)
- * Engine: WebLLM (MLC-LLM)
+ * GPU Mode: Llama-3-8B (4GB, WebGPU required)
+ * CPU Mode: Qwen2-0.5B (300MB, works on any device)
  * 
- * Version: 3.2.0 (Dec 11, 2025 - GPU detection + cache fallback)
+ * Version: 3.3.0 (Dec 12, 2025 - Dual mode: GPU + CPU)
  */
 
 import * as webllm from '@mlc-ai/web-llm';
@@ -15,13 +15,16 @@ import * as webllm from '@mlc-ai/web-llm';
 let engine: webllm.MLCEngine | null = null;
 let isBooting = false;
 let cacheMode: 'persistent' | 'ram-only' = 'persistent';
+let currentMode: 'gpu' | 'cpu' = 'gpu'; // Default to GPU, fallback to CPU
+let loadedModelName: string | null = null; // Track which model is currently loaded
 
-console.log('[AI Worker] VOID AI Worker v3.2.0 - GPU mode initialized');
+console.log('[AI Worker] VOID AI Worker v3.3.0 - Dual mode (GPU/CPU) initialized');
 
 // Message types
 interface AICommand {
   type: 'BOOT_AI' | 'GENERATE';
   payload?: any;
+  mode?: 'gpu' | 'cpu'; // User-selected mode
 }
 
 interface AIResponse {
@@ -34,6 +37,7 @@ interface AIResponse {
  */
 async function checkWebGPUSupport(): Promise<{ supported: boolean; error?: string }> {
   try {
+    // @ts-ignore - WebGPU types not in default TypeScript lib
     if (!navigator.gpu) {
       return {
         supported: false,
@@ -41,6 +45,7 @@ async function checkWebGPUSupport(): Promise<{ supported: boolean; error?: strin
       };
     }
 
+    // @ts-ignore - WebGPU types
     const adapter = await navigator.gpu.requestAdapter();
     if (!adapter) {
       return {
@@ -160,20 +165,50 @@ async function bootEngine(
 
 // Worker message handler
 self.onmessage = async (event: MessageEvent<AICommand>) => {
-  const { type, payload } = event.data;
+  const { type, payload, mode } = event.data;
   
-  console.log('[AI Worker] Received command:', type);
+  console.log('[AI Worker] Received command:', type, 'Mode:', mode);
 
   try {
     switch (type) {
       case 'BOOT_AI': {
-        if (engine) {
+        // Get requested mode from event data (default to GPU if not specified)
+        const requestedMode = mode || 'gpu';
+        
+        // Select model based on mode
+        const selectedModel = requestedMode === 'gpu' 
+          ? 'Llama-3-8B-Instruct-q4f32_1-MLC'  // 4GB GPU model
+          : 'Qwen2-0.5B-Instruct-q4f16_1-MLC';   // 300MB CPU model
+        
+        console.log(`[AI Worker] Requested mode: ${requestedMode}, Selected model: ${selectedModel}, Currently loaded: ${loadedModelName || 'none'}`);
+        
+        // Check if we need to switch models
+        if (engine && loadedModelName === selectedModel) {
           const response: AIResponse = {
             type: 'RESPONSE',
-            payload: 'AI already loaded',
+            payload: `AI already loaded (${requestedMode.toUpperCase()} mode)`,
           };
           self.postMessage(response);
           break;
+        }
+        
+        // If different model is requested, unload current engine
+        if (engine && loadedModelName !== selectedModel) {
+          console.log(`[AI Worker] Switching from ${loadedModelName} to ${selectedModel}`);
+          self.postMessage({
+            type: 'PROGRESS',
+            payload: { text: 'Unloading previous model...', progress: 0.01 }
+          });
+          
+          try {
+            await engine.unload();
+            engine = null;
+            loadedModelName = null;
+          } catch (err) {
+            console.warn('[AI Worker] Error unloading engine:', err);
+            engine = null;
+            loadedModelName = null;
+          }
         }
 
         if (isBooting) {
@@ -186,44 +221,46 @@ self.onmessage = async (event: MessageEvent<AICommand>) => {
         }
 
         isBooting = true;
+        currentMode = requestedMode;
         
-        console.log('[AI Worker] BOOT_AI command received, checking WebGPU support...');
+        console.log(`[AI Worker] BOOT_AI command received, mode: ${currentMode}, model: ${selectedModel}`);
 
-        // Step 1: Check WebGPU support first
-        self.postMessage({
-          type: 'PROGRESS',
-          payload: { text: 'Checking GPU compatibility...', progress: 0.01 }
-        });
+        // Step 1: Check WebGPU support first (only for GPU mode)
+        if (currentMode === 'gpu') {
+          self.postMessage({
+            type: 'PROGRESS',
+            payload: { text: 'Checking GPU compatibility...', progress: 0.01 }
+          });
 
-        const gpuCheck = await checkWebGPUSupport();
-        if (!gpuCheck.supported) {
-          isBooting = false;
-          
-          // Send detailed error to UI
-          const errorMsg = 
-            `GPU NOT SUPPORTED\n\n` +
-            `${gpuCheck.error}\n\n` +
-            `Solutions:\n` +
-            `1. Update your browser to Chrome 113+ or Edge 113+\n` +
-            `2. Update GPU drivers from manufacturer website\n` +
-            `3. Check if your GPU supports WebGPU: https://webgpureport.org\n` +
-            `4. Use a different computer with a compatible GPU\n\n` +
-            `Note: The Python IDE will still work without AI features.`;
-          
-          throw new Error(errorMsg);
+          const gpuCheck = await checkWebGPUSupport();
+          if (!gpuCheck.supported) {
+            isBooting = false;
+            
+            // Suggest CPU mode instead
+            const errorMsg = 
+              `GPU NOT AVAILABLE\n\n` +
+              `${gpuCheck.error}\n\n` +
+              `SUGGESTION: Try CPU mode instead!\n` +
+              `CPU mode uses a smaller model (300MB) that works on any device.\n` +
+              `It's slower but doesn't require a GPU.\n\n` +
+              `Click the toggle to switch to CPU mode and try again.`;
+            
+            throw new Error(errorMsg);
+          }
         }
 
-        console.log('[AI Worker] WebGPU supported, proceeding with model download...');
+        console.log('[AI Worker] Starting model download...');
 
-        // Step 2: Initialize WebGPU
+        // Step 2: Initialize with selected mode
         self.postMessage({
           type: 'PROGRESS',
-          payload: { text: 'Initializing WebGPU...', progress: 0.02 }
+          payload: { 
+            text: currentMode === 'gpu' ? 'Initializing GPU...' : 'Initializing CPU mode...', 
+            progress: 0.02 
+          }
         });
 
         try {
-          const selectedModel = 'Llama-3-8B-Instruct-q4f32_1-MLC';
-          
           const initProgressCallback = (report: webllm.InitProgressReport) => {
             console.log('[AI Worker] Progress:', report);
             
@@ -237,10 +274,13 @@ self.onmessage = async (event: MessageEvent<AICommand>) => {
             });
           };
 
-          // Use graceful fallback boot
+          // Use graceful fallback boot with the selectedModel from above
           engine = await bootEngine(selectedModel, initProgressCallback);
 
           console.log('[AI Worker] Engine initialized successfully');
+          
+          // Track which model was loaded
+          loadedModelName = selectedModel;
           
           // Verify engine is still valid after initialization
           if (!engine) {
@@ -273,7 +313,7 @@ self.onmessage = async (event: MessageEvent<AICommand>) => {
 
         isBooting = false;
 
-        // Send completion with cache mode info
+        // Send completion with cache mode info and correct model name
         const cacheInfo = cacheMode === 'persistent' 
           ? '(Model cached for future use)' 
           : '(RAM-only: Will re-download on refresh)';
@@ -283,9 +323,10 @@ self.onmessage = async (event: MessageEvent<AICommand>) => {
           payload: { text: `Model loaded! ${cacheInfo}`, progress: 1 }
         });
 
+        const modelDisplayName = currentMode === 'gpu' ? 'Llama-3 (4GB)' : 'Qwen2 (300MB)';
         const response: AIResponse = {
           type: 'RESPONSE',
-          payload: `AI Brain activated! Llama-3 ready (GPU mode, ${cacheMode}).`,
+          payload: `AI Brain activated! ${modelDisplayName} ready (${currentMode.toUpperCase()} mode, ${cacheMode}).`,
         };
         self.postMessage(response);
         break;
@@ -301,19 +342,26 @@ self.onmessage = async (event: MessageEvent<AICommand>) => {
         console.log('[AI Worker] Generating response for:', prompt);
         
         try {
-          // Format messages for Llama-3
-          const messages: webllm.ChatCompletionMessageParam[] = [
-          { role: 'system', content: 'You are a helpful Python coding assistant.' },
-          { role: 'user', content: prompt },
-        ];
+          // Format messages differently based on model
+          const messages: webllm.ChatCompletionMessageParam[] = currentMode === 'gpu'
+            ? [
+                // Llama-3 requires specific format
+                { role: 'system', content: 'You are a helpful, concise Python coding assistant. Provide clear, working code.' },
+                { role: 'user', content: prompt },
+              ]
+            : [
+                // Qwen works with simpler format  
+                { role: 'user', content: `You are a Python coding assistant. ${prompt}` },
+              ];
 
-        // Generate response with streaming
-        const chunks = await engine.chat.completions.create({
-          messages,
-          temperature: 0.7,
-          max_tokens: 256,
-          stream: true,
-        });
+          // Generate response with streaming and proper parameters
+          const chunks = await engine.chat.completions.create({
+            messages,
+            temperature: 0.5,  // Lower temp for more focused output
+            max_tokens: 200,   // Shorter responses
+            top_p: 0.9,
+            stream: true,
+          });
 
         let fullResponse = '';
         for await (const chunk of chunks) {

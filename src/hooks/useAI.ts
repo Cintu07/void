@@ -24,6 +24,7 @@ interface AIResponse {
 interface AICommand {
   type: 'BOOT_AI' | 'GENERATE';
   payload?: any;
+  mode?: 'gpu' | 'cpu';
 }
 
 export function useAI() {
@@ -113,9 +114,9 @@ export function useAI() {
     });
   };
 
-  const bootAI = async (): Promise<string> => {
-    setLoadingProgress({ text: 'Initializing AI...', progress: 0 });
-    return sendCommand({ type: 'BOOT_AI' });
+  const bootAI = async (mode: 'gpu' | 'cpu' = 'gpu'): Promise<string> => {
+    setLoadingProgress({ text: `Initializing AI (${mode.toUpperCase()} mode)...`, progress: 0 });
+    return sendCommand({ type: 'BOOT_AI', mode });
   };
 
   const askAI = async (prompt: string): Promise<string> => {
@@ -132,6 +133,58 @@ export function useAI() {
     setAiOutput([]);
   };
 
+  const resetAI = () => {
+    // Reset state so user can activate again
+    setIsReady(false);
+    setLoadingProgress({ text: 'Not started', progress: 0 });
+    setAiOutput([]);
+  };
+
+  const terminateAI = () => {
+    // Terminate worker and recreate
+    if (workerRef.current) {
+      workerRef.current.terminate();
+      workerRef.current = null;
+    }
+    setIsReady(false);
+    setLoadingProgress({ text: 'Not started', progress: 0 });
+    setAiOutput([]);
+    
+    // Create new worker
+    const worker = new Worker(new URL('../kernel/ai.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+    worker.onmessage = (event: MessageEvent<AIResponse>) => {
+      const { type, payload } = event.data;
+      switch (type) {
+        case 'PROGRESS':
+          setLoadingProgress(payload);
+          break;
+        case 'AI_OUTPUT':
+          setAiOutput((prev) => [...prev, payload]);
+          break;
+        case 'RESPONSE':
+          if (payload.includes('AI Brain activated')) {
+            setIsReady(true);
+          }
+          const pendingCommand = commandQueueRef.current.get(commandIdRef.current);
+          if (pendingCommand) {
+            pendingCommand.resolve(payload);
+            commandQueueRef.current.delete(commandIdRef.current);
+          }
+          break;
+        case 'ERROR':
+          const errorCommand = commandQueueRef.current.get(commandIdRef.current);
+          if (errorCommand) {
+            errorCommand.reject(new Error(payload));
+            commandQueueRef.current.delete(commandIdRef.current);
+          }
+          break;
+      }
+    };
+    workerRef.current = worker;
+  };
+
   return {
     isReady,
     loadingProgress,
@@ -139,5 +192,7 @@ export function useAI() {
     bootAI,
     askAI,
     clearOutput,
+    resetAI,
+    terminateAI,
   };
 }

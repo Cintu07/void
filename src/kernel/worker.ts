@@ -11,17 +11,19 @@
  */
 
 // TypeScript declaration for worker global scope
-declare const self: WorkerGlobalScope & {
+declare const self: DedicatedWorkerGlobalScope & {
   pyodide?: any;
   loadPyodide?: any;
+  importScripts: (...urls: string[]) => void;
 };
 
 import { getDisk } from '../fs/VirtualDisk';
 import type { KernelCommand, KernelResponse } from './types';
 
-console.log('[Worker] VOID Kernel Worker v1.1.0 - Terminal formatting fixed');
+console.log('[Worker] VOID Kernel Worker v1.2.0 - Multi-language support (Python, C, C++)');
 const fs = getDisk();
 let pyodideReady = false;
+let clangReady = false;
 
 /**
  * Output Batcher
@@ -62,7 +64,10 @@ const outputBatcher = new OutputBatcher();
 
 // Worker message handler
 self.onmessage = async (event: MessageEvent<KernelCommand>) => {
-  const { type, payload } = event.data;
+  const { type } = event.data;
+  const payload = 'payload' in event.data ? event.data.payload : undefined;
+  
+  console.log('[Worker] Received command:', type);
 
   try {
     switch (type) {
@@ -182,6 +187,101 @@ self.onmessage = async (event: MessageEvent<KernelCommand>) => {
           payload: result !== undefined ? String(result) : '',
         };
         self.postMessage(response);
+        break;
+      }
+
+      case 'RUN_C':
+      case 'RUN_CPP': {
+        if (!payload) {
+          throw new Error(`${type} requires payload`);
+        }
+
+        const { code } = payload as { code: string };
+        const isC = type === 'RUN_C';
+        const ext = isC ? 'c' : 'cpp';
+        const compiler = isC ? 'gcc' : 'g++';
+        
+        // Write source file to virtual FS
+        const sourceFile = `/tmp/program.${ext}`;
+        const outputFile = '/tmp/program.out';
+        fs.writeFileSync(sourceFile, new TextEncoder().encode(code));
+        
+        // For now, simulate C/C++ compilation with a message
+        // TODO: Integrate actual WASM-based compiler (clang via wasm or jor1k)
+        outputBatcher.write(
+          `\r\n⚠️  C/C++ compilation in browser is experimental\r\n` +
+          `\r\n📝 Source code saved to ${sourceFile}\r\n` +
+          `\r\n🔧 To enable C/C++ compilation:\r\n` +
+          `   1. Integrate wasm-clang or emscripten\r\n` +
+          `   2. Or use jor1k Linux emulator\r\n` +
+          `   3. Or implement WebAssembly text format compiler\r\n` +
+          `\r\nFor now, use Python for zero-trust browser execution!\r\n`
+        );
+        outputBatcher.flush();
+        
+        const response: KernelResponse = {
+          type: 'RESPONSE',
+          payload: 'C/C++ compilation requires additional WASM toolchain',
+        };
+        self.postMessage(response);
+        break;
+      }
+
+      case 'LIST_FILES': {
+        // List all files in virtual FS
+        const listDir = (path: string): string[] => {
+          try {
+            const entries = fs.readdirSync(path);
+            let files: string[] = [];
+            
+            for (const entry of entries) {
+              const fullPath = `${path}/${entry}`;
+              try {
+                const stat = fs.statSync(fullPath);
+                if (stat.isDirectory()) {
+                  files.push(`${fullPath}/`);
+                  files = files.concat(listDir(fullPath));
+                } else {
+                  files.push(fullPath);
+                }
+              } catch (e) {
+                // Skip inaccessible files
+              }
+            }
+            
+            return files;
+          } catch (e) {
+            return [];
+          }
+        };
+        
+        const allFiles = listDir('/');
+        
+        const response: KernelResponse = {
+          type: 'RESPONSE',
+          payload: allFiles,
+        };
+        self.postMessage(response);
+        break;
+      }
+
+      case 'DELETE_FILE': {
+        if (!payload) {
+          throw new Error('DELETE_FILE requires payload');
+        }
+
+        const { path } = payload as { path: string };
+        
+        try {
+          fs.unlinkSync(path);
+          const response: KernelResponse = {
+            type: 'RESPONSE',
+            payload: `Deleted: ${path}`,
+          };
+          self.postMessage(response);
+        } catch (error) {
+          throw new Error(`Failed to delete ${path}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
         break;
       }
 

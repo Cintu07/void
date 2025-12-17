@@ -35,15 +35,33 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(
       // Import xterm.js only on client side
       import('xterm').then(({ Terminal: XTerm }) => {
         import('@xterm/addon-fit').then(({ FitAddon }) => {
-          // Initialize terminal
+          // Initialize terminal with green theme
           const term = new XTerm({
             cursorBlink: true,
             fontSize: 14,
             fontFamily: 'Menlo, Monaco, "Courier New", monospace',
             theme: {
-              background: '#000000',
+              background: '#0a0e0a',
               foreground: '#00ff00',
               cursor: '#00ff00',
+              cursorAccent: '#000000',
+              selectionBackground: '#00ff0040',
+              black: '#000000',
+              red: '#ff0000',
+              green: '#00ff00',
+              yellow: '#ffff00',
+              blue: '#0000ff',
+              magenta: '#ff00ff',
+              cyan: '#00ffff',
+              white: '#ffffff',
+              brightBlack: '#555555',
+              brightRed: '#ff5555',
+              brightGreen: '#55ff55',
+              brightYellow: '#ffff55',
+              brightBlue: '#5555ff',
+              brightMagenta: '#ff55ff',
+              brightCyan: '#55ffff',
+              brightWhite: '#ffffff',
             },
             cols: 80,
             rows: 24,
@@ -76,8 +94,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(
           fitAddonRef.current = fitAddon;
 
           // Welcome message
-          term.writeln('VOID Terminal initialized');
-          term.writeln('Type Python code and press RUN PYTHON');
+          term.writeln('\x1b[1;32m╔════════════════════════════════════════╗\x1b[0m');
+          term.writeln('\x1b[1;32m║     VOID Terminal v1.0 - Ready       ║\x1b[0m');
+          term.writeln('\x1b[1;32m╚════════════════════════════════════════╝\x1b[0m');
           term.writeln('');
 
           // Cleanup
@@ -102,8 +121,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(
     return (
       <div
         ref={containerRef}
-        className="w-full h-full bg-black rounded border border-green-400"
-        style={{ minHeight: '400px' }}
+        className="w-full h-full bg-black"
+        style={{ minHeight: '200px' }}
       />
     );
   }

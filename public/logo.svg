@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+    <!-- Background circle with subtle gradient -->
+    <defs>
+        <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#0a0a0a" />
+            <stop offset="100%" style="stop-color:#111111" />
+        </linearGradient>
+        <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#00ff00;stop-opacity:0.8" />
+            <stop offset="100%" style="stop-color:#00aa00;stop-opacity:0.6" />
+        </linearGradient>
+        <filter id="glow">
+            <feGaussianBlur stdDeviation="2" result="coloredBlur" />
+            <feMerge>
+                <feMergeNode in="coloredBlur" />
+                <feMergeNode in="SourceGraphic" />
+            </feMerge>
+        </filter>
+    </defs>
+
+    <!-- Main circle background -->
+    <circle cx="100" cy="100" r="95" fill="url(#bgGrad)" stroke="#00ff00" stroke-width="2" />
+
+    <!-- Inner void circle (the "O" in VOID) -->
+    <circle cx="100" cy="100" r="45" fill="none" stroke="#00ff00" stroke-width="4" filter="url(#glow)" />
+
+    <!-- Code brackets < > representing IDE -->
+    <path d="M55 80 L35 100 L55 120" stroke="#00ff00" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"
+        fill="none" filter="url(#glow)" />
+    <path d="M145 80 L165 100 L145 120" stroke="#00ff00" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"
+        fill="none" filter="url(#glow)" />
+
+    <!-- Cursor/underscore inside void -->
+    <rect x="90" y="105" width="20" height="4" fill="#00ff00" filter="url(#glow)">
+        <animate attributeName="opacity" values="1;0;1" dur="1s" repeatCount="indefinite" />
+    </rect>
+
+    <!-- Terminal prompt dots -->
+    <circle cx="85" cy="90" r="3" fill="#00ff00" opacity="0.7" />
+    <circle cx="100" cy="90" r="3" fill="#00ff00" opacity="0.7" />
+    <circle cx="115" cy="90" r="3" fill="#00ff00" opacity="0.7" />
+</svg>

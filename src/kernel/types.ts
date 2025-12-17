@@ -9,9 +9,13 @@
 export type KernelCommand = 
   | { type: 'BOOT' }
   | { type: 'BOOT_PYTHON' }
-  | { type: 'EXEC'; payload: { cmd: string } }
+  | { type: 'EXEC'; payload: { cmd: string; language?: 'python' | 'c' | 'cpp' } }
+  | { type: 'RUN_C'; payload: { code: string } }
+  | { type: 'RUN_CPP'; payload: { code: string } }
   | { type: 'READ_FILE'; payload: { path: string } }
-  | { type: 'WRITE_FILE'; payload: { path: string; content: Uint8Array } };
+  | { type: 'WRITE_FILE'; payload: { path: string; content: Uint8Array } }
+  | { type: 'LIST_FILES' }
+  | { type: 'DELETE_FILE'; payload: { path: string } };
 
 // Response Types
 export type KernelResponse = 

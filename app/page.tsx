@@ -1,10 +1,17 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { Toaster } from 'react-hot-toast';
 import { useKernel } from '../src/hooks/useKernel';
 import { useAI } from '../src/hooks/useAI';
 import { Terminal, TerminalHandle } from '../src/ui/Terminal';
 import CodeEditor from '../src/ui/Editor';
+import { Sidebar } from '../src/components/layout/Sidebar';
+import { SettingsDialog } from '../src/components/ui/SettingsDialog';
+import { AboutDialog } from '../src/components/ui/AboutDialog';
+import { useFileSystem } from '../src/store/fileSystem';
+import { useSettings } from '../src/store/settings';
+import { Settings, HelpCircle } from 'lucide-react';
 
 export default function Home() {
   const [status, setStatus] = useState<string>('BOOTING...');
@@ -12,10 +19,39 @@ export default function Home() {
   const [pythonLoaded, setPythonLoaded] = useState(false);
   const [lastOutputIndex, setLastOutputIndex] = useState(0);
   const [aiPrompt, setAiPrompt] = useState<string>('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
   const kernel = useKernel();
   const ai = useAI();
   const terminalRef = useRef<TerminalHandle>(null);
   const editorValueRef = useRef<string>('');
+  const { currentFile, updateFileContent } = useFileSystem();
+  const { aiMode } = useSettings();
+  
+  // References to handler functions for keyboard shortcuts
+  const handleRunRef = useRef<() => void>(() => {});
+  const handleSaveRef = useRef<() => void>(() => {});
+  
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // F5 - Run
+      if (e.key === 'F5') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleRunRef.current();
+      }
+      // Ctrl+S - Save
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleSaveRef.current();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, []);
 
   useEffect(() => {
     async function boot() {
@@ -78,10 +114,14 @@ export default function Home() {
 
   const handleEditorChange = (code: string) => {
     editorValueRef.current = code;
-    setPythonCode(code); // Keep state in sync for persistence
+    setPythonCode(code);
+    if (currentFile) {
+      updateFileContent(currentFile.path, code);
+    }
   };
 
   const handleSaveFile = async () => {
+    if (!kernel.isReady) return;
     try {
       const code = editorValueRef.current || pythonCode;
       const data = new TextEncoder().encode(code);
@@ -113,6 +153,7 @@ export default function Home() {
   };
 
   const handleRunPython = async () => {
+    if (!kernel.isReady) return;
     try {
       terminalRef.current?.clear();
       setLastOutputIndex(0); // Reset output tracking
@@ -152,12 +193,19 @@ export default function Home() {
     }
   };
 
+  // Update refs for keyboard shortcuts
+  useEffect(() => {
+    handleRunRef.current = handleRunPython;
+    handleSaveRef.current = handleSaveFile;
+  });
+
   const handleActivateBrain = async () => {
     try {
       setStatus('Activating AI Brain...');
-      terminalRef.current?.write(`\r\n Checking GPU compatibility...\r\n`);
+      const modeText = aiMode === 'gpu' ? 'GPU' : 'CPU';
+      terminalRef.current?.write(`\r\n Checking ${modeText} compatibility...\r\n`);
       
-      const result = await ai.bootAI();
+      const result = await ai.bootAI(aiMode);
       
       setStatus('AI Brain Ready!');
       terminalRef.current?.write(`\r\n ${result}\r\n`);
@@ -192,15 +240,99 @@ export default function Home() {
     }
   };
 
+  const handlePauseAI = () => {
+    ai.terminateAI();
+    setStatus('AI paused - resources freed');
+    terminalRef.current?.write('\r\n⏸ AI paused to save resources\r\n');
+  };
+
+  const handleDeleteModel = async () => {
+    try {
+      // Delete from IndexedDB cache
+      const databases = await indexedDB.databases();
+      for (const db of databases) {
+        if (db.name?.includes('webllm') || db.name?.includes('mlc')) {
+          indexedDB.deleteDatabase(db.name);
+        }
+      }
+      // Also try to clear cache storage
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        for (const key of keys) {
+          if (key.includes('webllm') || key.includes('transformers')) {
+            await caches.delete(key);
+          }
+        }
+      }
+      ai.terminateAI();
+      setStatus('AI model deleted from storage');
+      terminalRef.current?.write('\r\n🗑 AI model deleted from browser storage\r\n');
+    } catch (error) {
+      console.error('Failed to delete model:', error);
+      terminalRef.current?.write('\r\n⚠ Error deleting model\r\n');
+    }
+  };
+
+  const handleModeChange = () => {
+    // Reset AI when mode changes so user has to activate again
+    ai.resetAI();
+    setStatus('AI mode changed - click Activate Brain to use new mode');
+  };
+
   return (
-    <div className="min-h-screen bg-black text-green-400 font-mono p-4">
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold mb-2">VOID IDE</h1>
-        <p className="text-sm text-gray-500">{status}</p>
+    <div className="min-h-screen bg-black text-green-400 font-mono">
+      <Toaster position="top-right" />
+      
+      {/* Sidebar */}
+      <Sidebar onFileSelect={(file) => {
+        setPythonCode(file.content || '');
+        editorValueRef.current = file.content || '';
+      }} />
+      
+      {/* Settings Dialog */}
+      <SettingsDialog 
+        isOpen={settingsOpen} 
+        onClose={() => setSettingsOpen(false)}
+        aiReady={ai.isReady}
+        onPauseAI={handlePauseAI}
+        onDeleteModel={handleDeleteModel}
+        onModeChange={handleModeChange}
+      />
+      
+      {/* About Dialog */}
+      <AboutDialog
+        isOpen={aboutOpen}
+        onClose={() => setAboutOpen(false)}
+      />
+      
+      <div className="p-4">
+        {/* Header */}
+        <div className="mb-4 flex items-center justify-between flex-shrink-0">
+          <div>
+            <h1 className="text-2xl font-bold mb-2">VOID IDE</h1>
+            <p className="text-sm text-gray-500">{status}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setAboutOpen(true)}
+              className="p-2 hover:bg-gray-800 rounded transition-colors"
+              title="About & Documentation"
+            >
+              <HelpCircle className="w-5 h-5 text-green-400" />
+            </button>
+            <button
+              onClick={() => setSettingsOpen(true)}
+              className="p-2 hover:bg-gray-800 rounded transition-colors"
+              title="Settings"
+            >
+              <Settings className="w-5 h-5 text-gray-400" />
+            </button>
+          </div>
+        </div>
         
         {/* AI Loading Progress */}
         {!ai.isReady && ai.loadingProgress.progress >= 0 && (
-          <div className="mt-2">
+          <div className="mb-4 flex-shrink-0">
             <div className="text-xs text-gray-400 mb-1">{ai.loadingProgress.text}</div>
             <div className="w-full bg-gray-800 rounded-full h-2">
               <div
@@ -213,92 +345,88 @@ export default function Home() {
             </div>
           </div>
         )}
-      </div>
 
-      <div className="grid grid-cols-2 gap-4 h-[calc(100vh-140px)]">
-        {/* Left: Monaco Editor (50%) */}
-        <div className="border border-green-700 rounded overflow-hidden">
-          <CodeEditor 
-            initialCode={pythonCode} 
-            onChange={handleEditorChange}
-          />
-        </div>
-
-        {/* Right: Terminal + AI Chat (50%) */}
-        <div className="flex flex-col gap-4">
-          <div className="border border-green-700 rounded overflow-hidden flex-1">
-            <Terminal ref={terminalRef} />
-          </div>
+        {/* Control buttons - ALWAYS VISIBLE */}
+        <div className="mb-4 flex gap-4 flex-wrap flex-shrink-0">
+          <button
+            onClick={handleRunPython}
+            disabled={!kernel.isReady}
+            className="bg-cyan-400 text-black px-6 py-3 rounded font-bold hover:bg-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            RUN (F5)
+          </button>
           
-          {/* AI Chat Box */}
-          {ai.isReady && (
-            <div className="border border-purple-500 rounded p-4 bg-gray-900 h-48 overflow-y-auto">
-              <div className="text-xs text-purple-400 mb-2">AI ASSISTANT</div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={aiPrompt}
-                  onChange={(e) => setAiPrompt(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleAskAI()}
-                  placeholder="Ask AI: 'Write a function to...', 'Explain this code', etc."
-                  className="flex-1 bg-black text-green-400 px-3 py-2 rounded border border-purple-700 focus:border-purple-500 focus:outline-none text-sm"
-                />
-                <button
-                  onClick={handleAskAI}
-                  disabled={!aiPrompt.trim()}
-                  className="bg-purple-500 text-white px-4 py-2 rounded font-bold hover:bg-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
-                >
-                  SEND
-                </button>
-              </div>
-            </div>
-          )}
+          <button
+            onClick={handleSaveFile}
+            disabled={!kernel.isReady}
+            className="bg-blue-400 text-black px-6 py-3 rounded font-bold hover:bg-blue-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            SAVE (Ctrl+S)
+          </button>
+          
+          <button
+            onClick={handleWriteFile}
+            disabled={!kernel.isReady}
+            className="bg-green-400 text-black px-6 py-3 rounded font-bold hover:bg-green-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            TEST FS
+          </button>
+          
+          <button
+            onClick={handleActivateBrain}
+            disabled={ai.isReady}
+            className="bg-purple-500 text-white px-6 py-3 rounded font-bold hover:bg-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors relative"
+          >
+            {ai.isReady ? 'BRAIN ACTIVE' : 'ACTIVATE BRAIN'}
+            <span className="absolute -top-2 -right-2 px-1.5 py-0.5 text-[10px] font-bold bg-yellow-500 text-black rounded">
+              BETA
+            </span>
+          </button>
         </div>
-      </div>
 
-      {/* Control buttons */}
-      <div className="mt-4 flex gap-4">
-        <button
-          onClick={handleRunPython}
-          disabled={!kernel.isReady}
-          className="bg-cyan-400 text-black px-6 py-3 rounded font-bold hover:bg-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          RUN (F5)
-        </button>
-        
-        <button
-          onClick={handleSaveFile}
-          disabled={!kernel.isReady}
-          className="bg-blue-400 text-black px-6 py-3 rounded font-bold hover:bg-blue-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          SAVE (Ctrl+S)
-        </button>
-        
-        <button
-          onClick={handleActivateBrain}
-          disabled={ai.isReady}
-          className="bg-purple-500 text-white px-6 py-3 rounded font-bold hover:bg-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {ai.isReady ? 'BRAIN ACTIVE' : 'ACTIVATE BRAIN'}
-        </button>
-        
-        <button
-          onClick={handleWriteFile}
-          disabled={!kernel.isReady}
-          className="bg-green-400 text-black px-6 py-3 rounded font-bold hover:bg-green-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          TEST FS
-        </button>
-      </div>
+        {/* Grid Layout */}
+        <div className="grid grid-cols-2 gap-4" style={{ height: 'calc(100vh - 200px)', minHeight: '500px' }}>
+          {/* Left: Monaco Editor (50%) */}
+          <div className="border border-green-700 rounded overflow-hidden">
+            <CodeEditor 
+              initialCode={pythonCode} 
+              onChange={handleEditorChange}
+              language={currentFile?.language || 'python'}
+            />
+          </div>
 
-      <div className="mt-4 text-xs text-gray-600">
-        <div className="mb-2 text-gray-500">VOID: The Zero-Trust Browser IDE</div>
-        <div>• Write code in Monaco Editor → Execute with RUN → Save to virtual filesystem</div>
-        <div>• ACTIVATE BRAIN downloads Llama-3 (4GB) to YOUR browser's storage (one-time, requires GPU)</div>
-        <div>• Your code, API keys, and AI models stay on YOUR device - never sent to our servers</div>
-        <div>• Fully offline-capable • Zero installation • Open source</div>
+          {/* Right: Terminal + AI Chat (50%) */}
+          <div className="flex flex-col gap-4">
+            <div className="border border-green-700 rounded overflow-hidden flex-1">
+              <Terminal ref={terminalRef} />
+            </div>
+            
+            {/* AI Chat Box */}
+            {ai.isReady && (
+              <div className="border border-purple-500 rounded p-4 bg-gray-900 h-48 overflow-y-auto">
+                <div className="text-xs text-purple-400 mb-2">AI ASSISTANT</div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAskAI()}
+                    placeholder="Ask AI: 'Write a function to...', 'Explain this code', etc."
+                    className="flex-1 bg-black text-green-400 px-3 py-2 rounded border border-purple-700 focus:border-purple-500 focus:outline-none text-sm"
+                  />
+                  <button
+                    onClick={handleAskAI}
+                    disabled={!aiPrompt.trim()}
+                    className="bg-purple-500 text-white px-4 py-2 rounded font-bold hover:bg-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                  >
+                    SEND
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
-
