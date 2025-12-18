@@ -7,15 +7,6 @@
   color-scheme: dark;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    /* Override for users who prefer dark regardless of OS */
-    --background: #0a0a0a;
-    --foreground: #00ff00;
-    color-scheme: dark;
-  }
-}
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -36,7 +27,7 @@ body {
   left: 0;
   width: 4px;
   height: 100vh;
-  z-index: 100;
+  z-index: 1000;
   background: #15803d;
   cursor: pointer;
   display: flex;

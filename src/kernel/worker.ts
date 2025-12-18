@@ -232,18 +232,36 @@ self.onmessage = async (event: MessageEvent<KernelCommand>) => {
       case 'LIST_FILES': {
         // List all files in virtual FS with depth limit to prevent infinite recursion
         const MAX_DEPTH = 10;
+        
+        // Normalize and validate path to prevent traversal attacks
+        const normalizePath = (p: string): string | null => {
+          // Replace backslashes and collapse multiple slashes
+          const normalized = p.replace(/\\/g, '/').replace(/\/+/g, '/');
+          // Reject paths with .. sequences or that don't start with /
+          if (normalized.includes('..') || !normalized.startsWith('/')) {
+            return null;
+          }
+          return normalized;
+        };
+        
         const listDir = (path: string, depth = 0): string[] => {
-          // Prevent infinite recursion and path traversal
-          if (depth > MAX_DEPTH || path.includes('..')) {
+          // Prevent infinite recursion
+          if (depth > MAX_DEPTH) {
+            return [];
+          }
+          
+          // Validate path
+          const safePath = normalizePath(path);
+          if (!safePath) {
             return [];
           }
           
           try {
-            const entries = fs.readdirSync(path);
+            const entries = fs.readdirSync(safePath);
             let files: string[] = [];
             
             for (const entry of entries) {
-              const fullPath = path === '/' ? `/${entry}` : `${path}/${entry}`;
+              const fullPath = safePath === '/' ? `/${entry}` : `${safePath}/${entry}`;
               try {
                 const stat = fs.statSync(fullPath);
                 if (stat.isDirectory()) {

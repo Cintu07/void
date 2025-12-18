@@ -148,8 +148,10 @@ export class VirtualDisk {
     // Handle root directory
     if (!dirPath || dirPath === '/') {
       const entries = new Set<string>();
-      for (const path of this.memory.keys()) {
-        const firstPart = path.split('/').filter(Boolean)[0];
+      for (const filePath of this.memory.keys()) {
+        // Normalize: remove leading slash then get first segment
+        const normalizedPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
+        const firstPart = normalizedPath.split('/')[0];
         if (firstPart) entries.add(firstPart);
       }
       return Array.from(entries);

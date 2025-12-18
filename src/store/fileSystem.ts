@@ -239,14 +239,14 @@ export const useFileSystem = create<FileSystemState>()(
       };
       const updatedFile = findInTree(newFiles);
       
-      // Update openFiles to use the same reference from tree
+      // Update openFiles - explicitly apply content to ensure it's not lost
       const newOpenFiles = state.openFiles.map(f => 
-        f.path === path && updatedFile ? updatedFile : f
+        f.path === path && updatedFile ? { ...updatedFile, content } : f
       );
       
-      // Update currentFile if it's the one being edited
+      // Update currentFile if it's the one being edited - explicitly apply content
       const newCurrentFile = state.currentFile?.path === path && updatedFile
-        ? updatedFile
+        ? { ...updatedFile, content }
         : state.currentFile;
       
       return { 

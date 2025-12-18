@@ -86,8 +86,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onFileSelect }) => {
       return;
     }
     
-    // Validate filename - escape special chars properly
-    const invalidChars = /[<>:"/\\|?*]/;
+    // Validate filename - asterisk must be escaped in character class
+    const invalidChars = /[<>:"/\\|?\*]/;
     if (invalidChars.test(newItemName)) {
       toast.error('Name contains invalid characters');
       return;
@@ -142,8 +142,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onFileSelect }) => {
       return;
     }
     
-    // Validate filename - escape special chars properly
-    const invalidChars = /[<>:"/\\|?*]/;
+    // Validate filename - asterisk must be escaped in character class
+    const invalidChars = /[<>:"/\\|?\*]/;
     if (invalidChars.test(renameValue)) {
       toast.error('Name contains invalid characters');
       return;

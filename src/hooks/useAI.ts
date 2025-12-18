@@ -57,21 +57,26 @@ export function useAI() {
         if (payload.includes('AI Brain activated')) {
           setIsReady(true);
         }
-        // Find and resolve the oldest pending command
-        for (const [id, cmd] of commandQueueRef.current.entries()) {
-          cmd.resolve(payload);
-          commandQueueRef.current.delete(id);
-          break;
+        // AI worker processes commands sequentially (in-order responses guaranteed)
+        // Use commandIdRef to match response to the command that initiated it
+        {
+          const pendingCommand = commandQueueRef.current.get(commandIdRef.current);
+          if (pendingCommand) {
+            pendingCommand.resolve(payload);
+            commandQueueRef.current.delete(commandIdRef.current);
+          }
         }
         break;
 
       case 'ERROR':
         console.error('[useAI] Error:', payload);
-        // Find and reject the oldest pending command
-        for (const [id, cmd] of commandQueueRef.current.entries()) {
-          cmd.reject(new Error(payload));
-          commandQueueRef.current.delete(id);
-          break;
+        // Match error to current command using commandIdRef
+        {
+          const errorCommand = commandQueueRef.current.get(commandIdRef.current);
+          if (errorCommand) {
+            errorCommand.reject(new Error(payload));
+            commandQueueRef.current.delete(commandIdRef.current);
+          }
         }
         break;
     }
