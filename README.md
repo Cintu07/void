@@ -2,6 +2,8 @@
 
 A privacy-first, browser-based code editor with local AI assistance. Your code never leaves your machine.
 
+<!-- Build fix: Dependencies updated for Vercel deployment -->
+
 ## What is VOID?
 
 VOID is a lightweight IDE that runs entirely in your browser. It features:
