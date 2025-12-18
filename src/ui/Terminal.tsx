@@ -33,7 +33,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(
       if (!containerRef.current) return;
 
       // Import xterm.js only on client side
-      import('xterm').then(({ Terminal: XTerm }) => {
+      import('@xterm/xterm').then(({ Terminal: XTerm }) => {
         import('@xterm/addon-fit').then(({ FitAddon }) => {
           // Initialize terminal with green theme
           const term = new XTerm({
