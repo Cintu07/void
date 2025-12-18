@@ -57,19 +57,21 @@ export function useAI() {
         if (payload.includes('AI Brain activated')) {
           setIsReady(true);
         }
-        const pendingCommand = commandQueueRef.current.get(commandIdRef.current);
-        if (pendingCommand) {
-          pendingCommand.resolve(payload);
-          commandQueueRef.current.delete(commandIdRef.current);
+        // Find and resolve the oldest pending command
+        for (const [id, cmd] of commandQueueRef.current.entries()) {
+          cmd.resolve(payload);
+          commandQueueRef.current.delete(id);
+          break;
         }
         break;
 
       case 'ERROR':
         console.error('[useAI] Error:', payload);
-        const errorCommand = commandQueueRef.current.get(commandIdRef.current);
-        if (errorCommand) {
-          errorCommand.reject(new Error(payload));
-          commandQueueRef.current.delete(commandIdRef.current);
+        // Find and reject the oldest pending command
+        for (const [id, cmd] of commandQueueRef.current.entries()) {
+          cmd.reject(new Error(payload));
+          commandQueueRef.current.delete(id);
+          break;
         }
         break;
     }

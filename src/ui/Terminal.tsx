@@ -96,10 +96,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(
           // Welcome message - use cols for dynamic width
           const cols = term.cols || 40;
           const boxWidth = Math.min(cols - 2, 42);
-          const padding = '═'.repeat(boxWidth - 2);
-          term.writeln(`\x1b[1;32m╔${padding}╗\x1b[0m`);
-          term.writeln(`\x1b[1;32m║${' '.repeat(Math.floor((boxWidth - 26) / 2))}VOID Terminal v1.0 - Ready${' '.repeat(Math.ceil((boxWidth - 26) / 2))}║\x1b[0m`);
-          term.writeln(`\x1b[1;32m╚${padding}╝\x1b[0m`);
+          const innerWidth = boxWidth - 2; // Account for border chars
+          const titleText = 'VOID Terminal v1.0 - Ready';
+          const leftPad = Math.floor((innerWidth - titleText.length) / 2);
+          const rightPad = innerWidth - titleText.length - leftPad;
+          term.writeln(`\x1b[1;32m╔${'═'.repeat(innerWidth)}╗\x1b[0m`);
+          term.writeln(`\x1b[1;32m║${' '.repeat(leftPad)}${titleText}${' '.repeat(rightPad)}║\x1b[0m`);
+          term.writeln(`\x1b[1;32m╚${'═'.repeat(innerWidth)}╝\x1b[0m`);
           term.writeln('');
 
           // Cleanup

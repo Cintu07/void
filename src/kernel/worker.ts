@@ -12,9 +12,11 @@
 
 /* eslint-disable no-var */
 // Web Worker global scope declarations
-declare var self: Worker & {
+// Using typeof self to get the worker global scope type
+declare var self: typeof globalThis & {
   pyodide?: any;
   loadPyodide?: any;
+  postMessage: (message: any) => void;
 };
 declare function importScripts(...urls: string[]): void;
 /* eslint-enable no-var */
@@ -228,19 +230,25 @@ self.onmessage = async (event: MessageEvent<KernelCommand>) => {
       }
 
       case 'LIST_FILES': {
-        // List all files in virtual FS
-        const listDir = (path: string): string[] => {
+        // List all files in virtual FS with depth limit to prevent infinite recursion
+        const MAX_DEPTH = 10;
+        const listDir = (path: string, depth = 0): string[] => {
+          // Prevent infinite recursion and path traversal
+          if (depth > MAX_DEPTH || path.includes('..')) {
+            return [];
+          }
+          
           try {
             const entries = fs.readdirSync(path);
             let files: string[] = [];
             
             for (const entry of entries) {
-              const fullPath = `${path}/${entry}`;
+              const fullPath = path === '/' ? `/${entry}` : `${path}/${entry}`;
               try {
                 const stat = fs.statSync(fullPath);
                 if (stat.isDirectory()) {
                   files.push(`${fullPath}/`);
-                  files = files.concat(listDir(fullPath));
+                  files = files.concat(listDir(fullPath, depth + 1));
                 } else {
                   files.push(fullPath);
                 }

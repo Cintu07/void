@@ -145,6 +145,16 @@ export class VirtualDisk {
    * Returns array of filenames in the directory
    */
   readdirSync(dirPath: string): string[] {
+    // Handle root directory
+    if (!dirPath || dirPath === '/') {
+      const entries = new Set<string>();
+      for (const path of this.memory.keys()) {
+        const firstPart = path.split('/').filter(Boolean)[0];
+        if (firstPart) entries.add(firstPart);
+      }
+      return Array.from(entries);
+    }
+    
     const normalizedDir = dirPath.endsWith('/') ? dirPath.slice(0, -1) : dirPath;
     const entries = new Set<string>();
     
@@ -167,6 +177,14 @@ export class VirtualDisk {
    * Returns an object with isDirectory() method
    */
   statSync(path: string): { isDirectory: () => boolean; size: number } {
+    // Root directory is always a directory
+    if (!path || path === '/') {
+      return {
+        isDirectory: () => true,
+        size: 0,
+      };
+    }
+    
     const normalizedPath = path.endsWith('/') ? path.slice(0, -1) : path;
     
     // Check if it's a file

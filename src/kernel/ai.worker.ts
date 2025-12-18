@@ -209,7 +209,8 @@ self.onmessage = async (event: MessageEvent<AICommand>) => {
             engine = null;
             loadedModelName = null;
           } catch (err) {
-            console.error('[AI Worker] Error unloading engine:', err instanceof Error ? err.message : err);
+            // Log generic message to avoid exposing internal details
+            console.warn('[AI Worker] Model unload warning - forcing cleanup');
             // Force cleanup even on error
             engine = null;
             loadedModelName = null;

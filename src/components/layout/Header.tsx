@@ -105,7 +105,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
         
         {/* AI Loading Progress */}
-        {aiLoading && aiProgress && aiProgress.progress > 0 && (
+        {aiLoading && aiProgress && aiProgress.progress >= 0 && (
           <motion.div
             className="mt-3"
             initial={{ opacity: 0, height: 0 }}

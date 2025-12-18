@@ -64,7 +64,7 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     setDeleteLoading(true);
     setDeleteSuccess(false);
     try {
-      await onDeleteModel?.();
+      if (onDeleteModel) await onDeleteModel();
       setDeleteSuccess(true);
       setTimeout(() => setDeleteSuccess(false), 2000);
     } catch (error) {

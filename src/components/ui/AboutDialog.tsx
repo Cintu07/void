@@ -34,8 +34,7 @@ export const AboutDialog = ({ isOpen, onClose }: AboutDialogProps) => {
 
   return createPortal(
     <div 
-      className="fixed inset-0 flex items-center justify-center"
-      style={{ zIndex: 1000 }}
+      className="fixed inset-0 flex items-center justify-center z-[1000]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="about-dialog-title"
@@ -44,10 +43,7 @@ export const AboutDialog = ({ isOpen, onClose }: AboutDialogProps) => {
       <div 
         className="absolute inset-0 bg-black/80 backdrop-blur-sm"
         onClick={onClose}
-        onKeyDown={(e) => e.key === 'Enter' && onClose()}
-        role="button"
-        tabIndex={0}
-        aria-label="Close dialog"
+        aria-hidden="true"
       />
       
       {/* Dialog */}
@@ -149,8 +145,8 @@ export const AboutDialog = ({ isOpen, onClose }: AboutDialogProps) => {
                   { icon: Lock, title: 'Local Storage', desc: 'All your files persist in browser localStorage. No cloud sync, no account needed.' },
                   { icon: Code, title: 'Monaco Editor', desc: 'The same editor that powers VS Code. Full featured with keyboard shortcuts.' },
                   { icon: Zap, title: 'Instant Load', desc: 'No installation, no setup. Just open the URL and start coding immediately.' },
-                ].map((feature) => (
-                  <div key={feature.title} className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 hover:border-green-700 transition-colors">
+                ].map((feature, idx) => (
+                  <div key={`feature-${feature.title}-${idx}`} className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 hover:border-green-700 transition-colors">
                     <div className="flex items-center gap-3 mb-2">
                       <div className="p-2 bg-green-900/30 rounded-lg">
                         <feature.icon className="w-5 h-5 text-green-400" />
@@ -269,8 +265,8 @@ export const AboutDialog = ({ isOpen, onClose }: AboutDialogProps) => {
                     desc: 'Save frequently used code snippets in different files. They persist in your browser.',
                     example: 'Keep a collection of utility functions, templates, or boilerplate code'
                   },
-                ].map((useCase) => (
-                  <div key={useCase.title} className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 hover:border-green-700 transition-colors">
+                ].map((useCase, idx) => (
+                  <div key={`usecase-${idx}`} className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 hover:border-green-700 transition-colors">
                     <h4 className="text-green-400 font-semibold mb-2">{useCase.title}</h4>
                     <p className="text-gray-300 text-sm mb-2">{useCase.desc}</p>
                     <p className="text-gray-500 text-xs italic">💡 {useCase.example}</p>
