@@ -10,12 +10,14 @@
  * Version: 1.1.0 (Updated: Dec 6, 2025 - Fixed terminal formatting)
  */
 
-// TypeScript declaration for worker global scope
-declare const self: DedicatedWorkerGlobalScope & {
+/* eslint-disable no-var */
+// Web Worker global scope declarations
+declare var self: Worker & {
   pyodide?: any;
   loadPyodide?: any;
-  importScripts: (...urls: string[]) => void;
 };
+declare function importScripts(...urls: string[]): void;
+/* eslint-enable no-var */
 
 import { getDisk } from '../fs/VirtualDisk';
 import type { KernelCommand, KernelResponse } from './types';
@@ -199,11 +201,9 @@ self.onmessage = async (event: MessageEvent<KernelCommand>) => {
         const { code } = payload as { code: string };
         const isC = type === 'RUN_C';
         const ext = isC ? 'c' : 'cpp';
-        const compiler = isC ? 'gcc' : 'g++';
         
         // Write source file to virtual FS
         const sourceFile = `/tmp/program.${ext}`;
-        const outputFile = '/tmp/program.out';
         fs.writeFileSync(sourceFile, new TextEncoder().encode(code));
         
         // For now, simulate C/C++ compilation with a message
@@ -271,6 +271,11 @@ self.onmessage = async (event: MessageEvent<KernelCommand>) => {
         }
 
         const { path } = payload as { path: string };
+        
+        // Validate path - prevent traversal attacks
+        if (!path || path.includes('..') || !path.startsWith('/')) {
+          throw new Error(`Invalid path: ${path}`);
+        }
         
         try {
           fs.unlinkSync(path);

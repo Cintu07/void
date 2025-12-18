@@ -38,55 +38,50 @@ export function useAI() {
   const commandQueueRef = useRef<Map<number, { resolve: Function; reject: Function }>>(new Map());
   const commandIdRef = useRef(0);
 
+  // Shared message handler factory
+  const createMessageHandler = () => (event: MessageEvent<AIResponse>) => {
+    const { type, payload } = event.data;
+
+    switch (type) {
+      case 'PROGRESS':
+        console.log('[useAI] Progress update:', payload);
+        setLoadingProgress(payload);
+        break;
+
+      case 'AI_OUTPUT':
+        setAiOutput((prev) => [...prev, payload]);
+        break;
+
+      case 'RESPONSE':
+        console.log('[useAI] Response:', payload);
+        if (payload.includes('AI Brain activated')) {
+          setIsReady(true);
+        }
+        const pendingCommand = commandQueueRef.current.get(commandIdRef.current);
+        if (pendingCommand) {
+          pendingCommand.resolve(payload);
+          commandQueueRef.current.delete(commandIdRef.current);
+        }
+        break;
+
+      case 'ERROR':
+        console.error('[useAI] Error:', payload);
+        const errorCommand = commandQueueRef.current.get(commandIdRef.current);
+        if (errorCommand) {
+          errorCommand.reject(new Error(payload));
+          commandQueueRef.current.delete(commandIdRef.current);
+        }
+        break;
+    }
+  };
+
   useEffect(() => {
     // Create AI worker
     const worker = new Worker(new URL('../kernel/ai.worker.ts', import.meta.url), {
       type: 'module',
     });
 
-    worker.onmessage = (event: MessageEvent<AIResponse>) => {
-      const { type, payload } = event.data;
-
-      switch (type) {
-        case 'PROGRESS':
-          console.log('[useAI] Progress update:', payload);
-          setLoadingProgress(payload);
-          break;
-
-        case 'AI_OUTPUT':
-          // Streaming output from LLM
-          setAiOutput((prev) => [...prev, payload]);
-          break;
-
-        case 'RESPONSE':
-          // Command completed successfully
-          console.log('[useAI] Response:', payload);
-          
-          // If this is the AI ready message, update state
-          if (payload.includes('AI Brain activated')) {
-            setIsReady(true);
-          }
-          
-          // Resolve any pending command
-          const pendingCommand = commandQueueRef.current.get(commandIdRef.current);
-          if (pendingCommand) {
-            pendingCommand.resolve(payload);
-            commandQueueRef.current.delete(commandIdRef.current);
-          }
-          break;
-
-        case 'ERROR':
-          console.error('[useAI] Error:', payload);
-          
-          // Reject any pending command
-          const errorCommand = commandQueueRef.current.get(commandIdRef.current);
-          if (errorCommand) {
-            errorCommand.reject(new Error(payload));
-            commandQueueRef.current.delete(commandIdRef.current);
-          }
-          break;
-      }
-    };
+    worker.onmessage = createMessageHandler();
 
     worker.onerror = (error) => {
       console.error('[useAI] Worker error:', error);
@@ -96,6 +91,11 @@ export function useAI() {
 
     // Cleanup
     return () => {
+      // Clear pending commands on cleanup
+      commandQueueRef.current.forEach(({ reject }) => {
+        reject(new Error('Worker terminated'));
+      });
+      commandQueueRef.current.clear();
       worker.terminate();
     };
   }, []);
@@ -141,6 +141,12 @@ export function useAI() {
   };
 
   const terminateAI = () => {
+    // Clear pending commands
+    commandQueueRef.current.forEach(({ reject }) => {
+      reject(new Error('AI terminated'));
+    });
+    commandQueueRef.current.clear();
+    
     // Terminate worker and recreate
     if (workerRef.current) {
       workerRef.current.terminate();
@@ -150,38 +156,11 @@ export function useAI() {
     setLoadingProgress({ text: 'Not started', progress: 0 });
     setAiOutput([]);
     
-    // Create new worker
+    // Create new worker with shared handler
     const worker = new Worker(new URL('../kernel/ai.worker.ts', import.meta.url), {
       type: 'module',
     });
-    worker.onmessage = (event: MessageEvent<AIResponse>) => {
-      const { type, payload } = event.data;
-      switch (type) {
-        case 'PROGRESS':
-          setLoadingProgress(payload);
-          break;
-        case 'AI_OUTPUT':
-          setAiOutput((prev) => [...prev, payload]);
-          break;
-        case 'RESPONSE':
-          if (payload.includes('AI Brain activated')) {
-            setIsReady(true);
-          }
-          const pendingCommand = commandQueueRef.current.get(commandIdRef.current);
-          if (pendingCommand) {
-            pendingCommand.resolve(payload);
-            commandQueueRef.current.delete(commandIdRef.current);
-          }
-          break;
-        case 'ERROR':
-          const errorCommand = commandQueueRef.current.get(commandIdRef.current);
-          if (errorCommand) {
-            errorCommand.reject(new Error(payload));
-            commandQueueRef.current.delete(commandIdRef.current);
-          }
-          break;
-      }
-    };
+    worker.onmessage = createMessageHandler();
     workerRef.current = worker;
   };
 

@@ -37,16 +37,17 @@ interface AIResponse {
  */
 async function checkWebGPUSupport(): Promise<{ supported: boolean; error?: string }> {
   try {
-    // @ts-ignore - WebGPU types not in default TypeScript lib
-    if (!navigator.gpu) {
+    // Check for WebGPU support
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const gpu = (navigator as any).gpu;
+    if (!gpu) {
       return {
         supported: false,
         error: 'WebGPU not available in this browser. Please use Chrome 113+ or Edge 113+.',
       };
     }
 
-    // @ts-ignore - WebGPU types
-    const adapter = await navigator.gpu.requestAdapter();
+    const adapter = await gpu.requestAdapter();
     if (!adapter) {
       return {
         supported: false,
@@ -54,7 +55,7 @@ async function checkWebGPUSupport(): Promise<{ supported: boolean; error?: strin
       };
     }
 
-    console.log('[AI Worker] WebGPU adapter found:', adapter.name);
+    console.log('[AI Worker] WebGPU adapter found');
     return { supported: true };
     
   } catch (error) {
@@ -133,8 +134,10 @@ async function bootEngine(
           };
           progressCallback(modifiedReport);
         },
+        // Disable IndexedDB cache for RAM-only mode
+        // @ts-expect-error - webllm types may not include this option
         appConfig: {
-          useIndexedDBCache: false, // Disable IndexedDB
+          useIndexedDBCache: false,
         },
       });
       
@@ -202,10 +205,12 @@ self.onmessage = async (event: MessageEvent<AICommand>) => {
           
           try {
             await engine.unload();
+            console.log('[AI Worker] Previous model unloaded successfully');
             engine = null;
             loadedModelName = null;
           } catch (err) {
-            console.warn('[AI Worker] Error unloading engine:', err);
+            console.error('[AI Worker] Error unloading engine:', err instanceof Error ? err.message : err);
+            // Force cleanup even on error
             engine = null;
             loadedModelName = null;
           }
@@ -342,16 +347,18 @@ self.onmessage = async (event: MessageEvent<AICommand>) => {
         console.log('[AI Worker] Generating response for:', prompt);
         
         try {
+          // System prompt - simple and direct
+          const systemPrompt = `You are a concise Python coding assistant. Answer directly without repeating the question. Do not prefix your response with labels like "AI:" or "Assistant:".`;
+
           // Format messages differently based on model
           const messages: webllm.ChatCompletionMessageParam[] = currentMode === 'gpu'
             ? [
-                // Llama-3 requires specific format
-                { role: 'system', content: 'You are a helpful, concise Python coding assistant. Provide clear, working code.' },
+                { role: 'system', content: systemPrompt },
                 { role: 'user', content: prompt },
               ]
             : [
-                // Qwen works with simpler format  
-                { role: 'user', content: `You are a Python coding assistant. ${prompt}` },
+                // Qwen - single user message with instructions
+                { role: 'user', content: `${systemPrompt}\n\nQuestion: ${prompt}\n\nAnswer:` },
               ];
 
           // Generate response with streaming and proper parameters

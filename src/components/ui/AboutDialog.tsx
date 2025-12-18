@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Shield, Cpu, Code, Zap, Lock, Globe, Terminal, FileCode, Brain } from 'lucide-react';
 
@@ -15,16 +15,39 @@ export const AboutDialog = ({ isOpen, onClose }: AboutDialogProps) => {
 
   useEffect(() => {
     setMounted(true);
+    return () => setMounted(false);
   }, []);
+
+  // Handle escape key
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isOpen, handleKeyDown]);
 
   if (!mounted || !isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 1000 }}>
+    <div 
+      className="fixed inset-0 flex items-center justify-center"
+      style={{ zIndex: 1000 }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="about-dialog-title"
+    >
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/80 backdrop-blur-sm"
         onClick={onClose}
+        onKeyDown={(e) => e.key === 'Enter' && onClose()}
+        role="button"
+        tabIndex={0}
+        aria-label="Close dialog"
       />
       
       {/* Dialog */}
@@ -34,7 +57,7 @@ export const AboutDialog = ({ isOpen, onClose }: AboutDialogProps) => {
           <div className="flex items-center gap-3">
             <img src="/logo.svg" alt="VOID Logo" className="w-10 h-10" />
             <div>
-              <h2 className="text-xl font-bold text-green-400 font-mono">VOID IDE</h2>
+              <h2 id="about-dialog-title" className="text-xl font-bold text-green-400 font-mono">VOID IDE</h2>
               <p className="text-xs text-gray-500">Privacy-First Browser IDE</p>
             </div>
           </div>
@@ -126,8 +149,8 @@ export const AboutDialog = ({ isOpen, onClose }: AboutDialogProps) => {
                   { icon: Lock, title: 'Local Storage', desc: 'All your files persist in browser localStorage. No cloud sync, no account needed.' },
                   { icon: Code, title: 'Monaco Editor', desc: 'The same editor that powers VS Code. Full featured with keyboard shortcuts.' },
                   { icon: Zap, title: 'Instant Load', desc: 'No installation, no setup. Just open the URL and start coding immediately.' },
-                ].map((feature, i) => (
-                  <div key={i} className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 hover:border-green-700 transition-colors">
+                ].map((feature) => (
+                  <div key={feature.title} className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 hover:border-green-700 transition-colors">
                     <div className="flex items-center gap-3 mb-2">
                       <div className="p-2 bg-green-900/30 rounded-lg">
                         <feature.icon className="w-5 h-5 text-green-400" />
@@ -246,8 +269,8 @@ export const AboutDialog = ({ isOpen, onClose }: AboutDialogProps) => {
                     desc: 'Save frequently used code snippets in different files. They persist in your browser.',
                     example: 'Keep a collection of utility functions, templates, or boilerplate code'
                   },
-                ].map((useCase, i) => (
-                  <div key={i} className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 hover:border-green-700 transition-colors">
+                ].map((useCase) => (
+                  <div key={useCase.title} className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 hover:border-green-700 transition-colors">
                     <h4 className="text-green-400 font-semibold mb-2">{useCase.title}</h4>
                     <p className="text-gray-300 text-sm mb-2">{useCase.desc}</p>
                     <p className="text-gray-500 text-xs italic">💡 {useCase.example}</p>
@@ -272,7 +295,7 @@ export const AboutDialog = ({ isOpen, onClose }: AboutDialogProps) => {
         {/* Footer */}
         <div className="p-4 border-t border-green-900 bg-black flex items-center justify-between">
           <div className="text-xs text-gray-500">
-            Made with 💚 by the community
+            Made with 💚 by Pawan
           </div>
           <div className="flex items-center gap-4">
             <a 

@@ -141,6 +141,57 @@ export class VirtualDisk {
   }
 
   /**
+   * SYNC: List directory contents (like fs.readdirSync)
+   * Returns array of filenames in the directory
+   */
+  readdirSync(dirPath: string): string[] {
+    const normalizedDir = dirPath.endsWith('/') ? dirPath.slice(0, -1) : dirPath;
+    const entries = new Set<string>();
+    
+    for (const path of this.memory.keys()) {
+      // Check if file is in this directory
+      if (path.startsWith(normalizedDir + '/')) {
+        const relativePath = path.slice(normalizedDir.length + 1);
+        const firstPart = relativePath.split('/')[0];
+        if (firstPart) {
+          entries.add(firstPart);
+        }
+      }
+    }
+    
+    return Array.from(entries);
+  }
+
+  /**
+   * SYNC: Get file/directory stats (like fs.statSync)
+   * Returns an object with isDirectory() method
+   */
+  statSync(path: string): { isDirectory: () => boolean; size: number } {
+    const normalizedPath = path.endsWith('/') ? path.slice(0, -1) : path;
+    
+    // Check if it's a file
+    if (this.memory.has(normalizedPath)) {
+      const data = this.memory.get(normalizedPath)!;
+      return {
+        isDirectory: () => false,
+        size: data.byteLength,
+      };
+    }
+    
+    // Check if it's a directory (any file starts with this path)
+    for (const filePath of this.memory.keys()) {
+      if (filePath.startsWith(normalizedPath + '/')) {
+        return {
+          isDirectory: () => true,
+          size: 0,
+        };
+      }
+    }
+    
+    throw new Error(`ENOENT: no such file or directory, stat '${path}'`);
+  }
+
+  /**
    * Get disk statistics
    */
   stats(): { fileCount: number; dirtyCount: number; totalBytes: number } {

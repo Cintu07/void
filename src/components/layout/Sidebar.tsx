@@ -64,11 +64,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ onFileSelect }) => {
   
   // Close context menu on click outside
   useEffect(() => {
+    if (!contextMenu) return;
+    
     const handleClick = () => setContextMenu(null);
-    if (contextMenu) {
-      document.addEventListener('click', handleClick);
-      return () => document.removeEventListener('click', handleClick);
-    }
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null);
+    };
+    
+    document.addEventListener('click', handleClick);
+    document.addEventListener('keydown', handleEscape);
+    
+    return () => {
+      document.removeEventListener('click', handleClick);
+      document.removeEventListener('keydown', handleEscape);
+    };
   }, [contextMenu]);
   
   const handleCreateItem = () => {
@@ -78,7 +87,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onFileSelect }) => {
     }
     
     // Validate filename
-    const invalidChars = /[<>:"/\\|?*]/;
+    const invalidChars = /[<>:"/\\|?\*]/;
     if (invalidChars.test(newItemName)) {
       toast.error('Name contains invalid characters');
       return;
@@ -134,7 +143,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onFileSelect }) => {
     }
     
     // Validate filename
-    const invalidChars = /[<>:"/\\|?*]/;
+    const invalidChars = /[<>:"/\\|?\*]/;
     if (invalidChars.test(renameValue)) {
       toast.error('Name contains invalid characters');
       return;
@@ -194,23 +203,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ onFileSelect }) => {
       );
     }
     
-    // C icon
+    // C icon (blue hexagon style)
     if (file.name.endsWith('.c')) {
       return (
-        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
-          <rect x="4" y="4" width="16" height="16" rx="2" fill="#555555"/>
-          <text x="12" y="16" fontSize="12" fontWeight="bold" fill="#22D3EE" textAnchor="middle" fontFamily="monospace">C</text>
+        <svg className="w-5 h-5" viewBox="0 0 128 128">
+          <path fill="#659AD3" d="M115.4 30.7L67.1 2.9c-.8-.5-1.9-.7-3.1-.7-1.2 0-2.3.3-3.1.7l-48 27.9c-1.7 1-2.9 3.5-2.9 5.4v55.7c0 1.1.2 2.4 1 3.5l106.8-62c-.6-1.2-1.5-2.1-2.4-2.7z"/>
+          <path fill="#03599C" d="M10.7 95.3c.5.8 1.2 1.5 1.9 1.9l48.2 27.9c.8.5 1.9.7 3.1.7 1.2 0 2.3-.3 3.1-.7l48-27.9c1.7-1 2.9-3.5 2.9-5.4V36.1c0-.9-.1-1.9-.6-2.8l-106.6 62z"/>
+          <path fill="#fff" d="M85.3 76.1C81.1 83.5 73.1 88.5 64 88.5c-13.5 0-24.5-11-24.5-24.5s11-24.5 24.5-24.5c9.1 0 17.1 5 21.3 12.5l13-7.5c-6.8-11.9-19.6-20-34.3-20-21.8 0-39.5 17.7-39.5 39.5s17.7 39.5 39.5 39.5c14.6 0 27.4-8 34.2-19.8l-12.9-7.6z"/>
         </svg>
       );
     }
     
-    // C++ icon
-    if (file.name.endsWith('.cpp') || file.name.endsWith('.cc') || file.name.endsWith('.cxx')) {
+    // C++ icon (blue hexagon with ++)
+    if (file.name.endsWith('.cpp') || file.name.endsWith('.cc') || file.name.endsWith('.cxx') || file.name.endsWith('.h') || file.name.endsWith('.hpp')) {
       return (
-        <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none">
-          <rect x="3" y="4" width="18" height="16" rx="2" fill="#00599C"/>
-          <text x="7" y="16" fontSize="10" fontWeight="bold" fill="#A855F7" textAnchor="middle" fontFamily="monospace">C</text>
-          <text x="13" y="13" fontSize="8" fontWeight="bold" fill="#C084FC" textAnchor="middle" fontFamily="monospace">++</text>
+        <svg className="w-5 h-5" viewBox="0 0 128 128">
+          <path fill="#9C033A" d="M115.4 30.7L67.1 2.9c-.8-.5-1.9-.7-3.1-.7-1.2 0-2.3.3-3.1.7l-48 27.9c-1.7 1-2.9 3.5-2.9 5.4v55.7c0 1.1.2 2.4 1 3.5l106.8-62c-.6-1.2-1.5-2.1-2.4-2.7z"/>
+          <path fill="#004482" d="M10.7 95.3c.5.8 1.2 1.5 1.9 1.9l48.2 27.9c.8.5 1.9.7 3.1.7 1.2 0 2.3-.3 3.1-.7l48-27.9c1.7-1 2.9-3.5 2.9-5.4V36.1c0-.9-.1-1.9-.6-2.8l-106.6 62z"/>
+          <path fill="#fff" d="M85.3 76.1C81.1 83.5 73.1 88.5 64 88.5c-13.5 0-24.5-11-24.5-24.5s11-24.5 24.5-24.5c9.1 0 17.1 5 21.3 12.5l13-7.5c-6.8-11.9-19.6-20-34.3-20-21.8 0-39.5 17.7-39.5 39.5s17.7 39.5 39.5 39.5c14.6 0 27.4-8 34.2-19.8l-12.9-7.6z"/>
+          <path fill="#fff" d="M100.3 65.5h-5.6v-5.6h-4.8v5.6H84v4.8h5.9v5.6h4.8v-5.6h5.6z"/>
+          <path fill="#fff" d="M119.3 65.5h-5.6v-5.6h-4.8v5.6h-5.9v4.8h5.9v5.6h4.8v-5.6h5.6z"/>
         </svg>
       );
     }
@@ -422,7 +434,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onFileSelect }) => {
                   type="text"
                   value={newItemName}
                   onChange={(e) => setNewItemName(e.target.value)}
-                  onKeyPress={(e) => {
+                  onKeyDown={(e) => {
                     if (e.key === 'Enter') handleCreateItem();
                     if (e.key === 'Escape') setCreatingType(null);
                   }}

@@ -44,23 +44,32 @@ export const SettingsDialog: React.FC<SettingsDialogProps> = ({
     setPauseLoading(true);
     setPauseSuccess(false);
     try {
-      await new Promise(r => setTimeout(r, 300)); // Small delay for feedback
       onPauseAI?.();
       setPauseSuccess(true);
       setTimeout(() => setPauseSuccess(false), 2000);
+    } catch (error) {
+      console.error('Failed to pause AI:', error);
+      setPauseSuccess(false);
     } finally {
       setPauseLoading(false);
     }
   };
 
   const handleDeleteModel = async () => {
+    // Confirm destructive action
+    if (!confirm('Delete the AI model from storage? You will need to re-download it next time.')) {
+      return;
+    }
+    
     setDeleteLoading(true);
     setDeleteSuccess(false);
     try {
-      await new Promise(r => setTimeout(r, 500)); // Small delay for feedback
-      onDeleteModel?.();
+      await onDeleteModel?.();
       setDeleteSuccess(true);
       setTimeout(() => setDeleteSuccess(false), 2000);
+    } catch (error) {
+      console.error('Failed to delete model:', error);
+      setDeleteSuccess(false);
     } finally {
       setDeleteLoading(false);
     }

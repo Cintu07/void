@@ -60,6 +60,17 @@ export default function Home() {
         const bootMsg = await kernel.boot();
         setStatus(bootMsg);
 
+        // Pre-load Python runtime in background
+        setStatus('Loading Python runtime...');
+        try {
+          await kernel.bootPython();
+          setPythonLoaded(true);
+          setStatus('Ready');
+        } catch (pyErr) {
+          console.warn('Python preload failed, will retry on run:', pyErr);
+          setStatus('Ready (Python will load on first run)');
+        }
+
         // Try to load /main.py from file system
         try {
           const data = await kernel.readFile('/main.py');
@@ -108,7 +119,9 @@ export default function Home() {
   useEffect(() => {
     if (ai.aiOutput.length > 0) {
       const latestChunk = ai.aiOutput[ai.aiOutput.length - 1];
-      terminalRef.current?.write(latestChunk);
+      // Convert \n to \r\n for proper terminal newlines
+      const formattedChunk = latestChunk.replace(/\n/g, '\r\n');
+      terminalRef.current?.write(formattedChunk);
     }
   }, [ai.aiOutput]);
 
@@ -197,7 +210,7 @@ export default function Home() {
   useEffect(() => {
     handleRunRef.current = handleRunPython;
     handleSaveRef.current = handleSaveFile;
-  });
+  }, [kernel.isReady, pythonLoaded, currentFile]);
 
   const handleActivateBrain = async () => {
     try {
@@ -249,10 +262,16 @@ export default function Home() {
   const handleDeleteModel = async () => {
     try {
       // Delete from IndexedDB cache
-      const databases = await indexedDB.databases();
-      for (const db of databases) {
-        if (db.name?.includes('webllm') || db.name?.includes('mlc')) {
-          indexedDB.deleteDatabase(db.name);
+      if (indexedDB.databases) {
+        const databases = await indexedDB.databases();
+        for (const db of databases) {
+          if (db.name?.includes('webllm') || db.name?.includes('mlc')) {
+            await new Promise<void>((resolve, reject) => {
+              const request = indexedDB.deleteDatabase(db.name!);
+              request.onsuccess = () => resolve();
+              request.onerror = () => reject(request.error);
+            });
+          }
         }
       }
       // Also try to clear cache storage
@@ -269,13 +288,16 @@ export default function Home() {
       terminalRef.current?.write('\r\n🗑 AI model deleted from browser storage\r\n');
     } catch (error) {
       console.error('Failed to delete model:', error);
+      setStatus('Error deleting model');
       terminalRef.current?.write('\r\n⚠ Error deleting model\r\n');
     }
   };
 
   const handleModeChange = () => {
     // Reset AI when mode changes so user has to activate again
-    ai.resetAI();
+    if (ai?.resetAI) {
+      ai.resetAI();
+    }
     setStatus('AI mode changed - click Activate Brain to use new mode');
   };
 

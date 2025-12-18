@@ -74,12 +74,12 @@ export const useFileSystem = create<FileSystemState>()(
     }
     
     const newFile: FileNode = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       name,
       type: 'file',
       path: newPath,
       content: '',
-      language: language as any || get().getLanguageFromFilename(name),
+      language: language as FileNode['language'] || get().getLanguageFromFilename(name),
       isOpen: false,
     };
     
@@ -118,7 +118,7 @@ export const useFileSystem = create<FileSystemState>()(
     }
     
     const newFolder: FileNode = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       name,
       type: 'folder',
       path: newPath,
@@ -153,19 +153,22 @@ export const useFileSystem = create<FileSystemState>()(
   deleteFile: (path) => {
     set((state) => {
       const removeFromTree = (nodes: FileNode[]): FileNode[] => {
-        return nodes.filter(node => {
-          if (node.path === path) return false;
-          if (node.children) {
-            node.children = removeFromTree(node.children);
-          }
-          return true;
-        });
+        return nodes
+          .filter(node => node.path !== path)
+          .map(node => {
+            if (node.children) {
+              return { ...node, children: removeFromTree(node.children) };
+            }
+            return node;
+          });
       };
       
+      const newFiles = removeFromTree(state.files);
+      
       return {
-        files: removeFromTree(state.files),
-        openFiles: state.openFiles.filter(f => f.path !== path),
-        currentFile: state.currentFile?.path === path ? null : state.currentFile,
+        files: newFiles,
+        openFiles: state.openFiles.filter(f => f.path !== path && !f.path.startsWith(path + '/')),
+        currentFile: state.currentFile?.path === path || state.currentFile?.path.startsWith(path + '/') ? null : state.currentFile,
       };
     });
   },
@@ -179,10 +182,21 @@ export const useFileSystem = create<FileSystemState>()(
             pathParts[pathParts.length - 1] = newName;
             const newPath = pathParts.join('/');
             
+            // Recursively update children paths for folders
+            const updateChildrenPaths = (children: FileNode[] | undefined, oldBasePath: string, newBasePath: string): FileNode[] | undefined => {
+              if (!children) return undefined;
+              return children.map(child => ({
+                ...child,
+                path: child.path.replace(oldBasePath, newBasePath),
+                children: updateChildrenPaths(child.children, oldBasePath, newBasePath),
+              }));
+            };
+            
             return {
               ...node,
               name: newName,
               path: newPath,
+              children: node.type === 'folder' ? updateChildrenPaths(node.children, path, newPath) : undefined,
             };
           }
           if (node.children) {
@@ -210,7 +224,23 @@ export const useFileSystem = create<FileSystemState>()(
         });
       };
       
-      return { files: updateInTree(state.files) };
+      const newFiles = updateInTree(state.files);
+      
+      // Also update openFiles to keep refs in sync
+      const newOpenFiles = state.openFiles.map(f => 
+        f.path === path ? { ...f, content } : f
+      );
+      
+      // Update currentFile if it's the one being edited
+      const newCurrentFile = state.currentFile?.path === path 
+        ? { ...state.currentFile, content } 
+        : state.currentFile;
+      
+      return { 
+        files: newFiles,
+        openFiles: newOpenFiles,
+        currentFile: newCurrentFile,
+      };
     });
   },
   

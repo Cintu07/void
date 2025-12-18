@@ -77,33 +77,6 @@ export const Header: React.FC<HeaderProps> = ({
               <kbd className="ml-2 px-2 py-0.5 text-xs bg-black/30 rounded">Ctrl+S</kbd>
             </Button>
             
-            <Button
-              onClick={onRun}
-              disabled={!kernelReady}
-              variant="secondary"
-              icon={<Play className="w-4 h-4" />}
-            >
-              RUN
-            </Button>
-            
-            <Button
-              onClick={() => {}}
-              disabled={!kernelReady}
-              variant="secondary"
-              icon={<TestTube className="w-4 h-4" />}
-            >
-              TEST
-            </Button>
-            
-            <Button
-              onClick={() => {}}
-              disabled={!kernelReady}
-              variant="secondary"
-              icon={<FolderOpen className="w-4 h-4" />}
-            >
-              FS
-            </Button>
-            
             {!aiReady && (
               <Button
                 onClick={onActivateAI}
@@ -132,7 +105,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
         
         {/* AI Loading Progress */}
-        {aiLoading && aiProgress && aiProgress.progress >= 0 && (
+        {aiLoading && aiProgress && aiProgress.progress > 0 && (
           <motion.div
             className="mt-3"
             initial={{ opacity: 0, height: 0 }}

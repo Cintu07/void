@@ -4,48 +4,7 @@
 :root {
   --background: #0a0a0a;
   --foreground: #00ff00;
-}
-
-/* Light Theme - White and Black */
-[data-theme="light"] {
-  background-color: #ffffff !important;
-}
-
-[data-theme="light"] .min-h-screen {
-  background-color: #ffffff !important;
-}
-
-[data-theme="light"] .text-green-400,
-[data-theme="light"] h1,
-[data-theme="light"] h2,
-[data-theme="light"] .text-gray-400,
-[data-theme="light"] .text-gray-300,
-[data-theme="light"] .text-gray-500 {
-  color: #000000 !important;
-}
-
-[data-theme="light"] .bg-black {
-  background-color: #ffffff !important;
-}
-
-[data-theme="light"] .bg-gray-900,
-[data-theme="light"] .bg-gray-800 {
-  background-color: #f5f5f5 !important;
-}
-
-[data-theme="light"] .border-green-700,
-[data-theme="light"] .border-gray-700 {
-  border-color: #d4d4d4 !important;
-}
-
-[data-theme="light"] button {
-  color: #000000 !important;
-}
-
-[data-theme="light"] input {
-  background-color: #ffffff !important;
-  color: #000000 !important;
-  border-color: #d4d4d4 !important;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -63,12 +22,12 @@ body {
 
 /* Sidebar Trigger - Thin vertical line */
 #void-sidebar-trigger {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: 4px !important;
-  height: 100vh !important;
-  z-index: 999999 !important;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100vh;
+  z-index: 9999;
   background: #15803d;
   cursor: pointer;
   display: flex;
@@ -78,7 +37,7 @@ body {
 }
 
 #void-sidebar-trigger:hover {
-  width: 24px !important;
+  width: 24px;
   background: #166534;
 }
 

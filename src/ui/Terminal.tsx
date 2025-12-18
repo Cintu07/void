@@ -93,10 +93,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(
           terminalRef.current = term;
           fitAddonRef.current = fitAddon;
 
-          // Welcome message
-          term.writeln('\x1b[1;32m╔════════════════════════════════════════╗\x1b[0m');
-          term.writeln('\x1b[1;32m║     VOID Terminal v1.0 - Ready       ║\x1b[0m');
-          term.writeln('\x1b[1;32m╚════════════════════════════════════════╝\x1b[0m');
+          // Welcome message - use cols for dynamic width
+          const cols = term.cols || 40;
+          const boxWidth = Math.min(cols - 2, 42);
+          const padding = '═'.repeat(boxWidth - 2);
+          term.writeln(`\x1b[1;32m╔${padding}╗\x1b[0m`);
+          term.writeln(`\x1b[1;32m║${' '.repeat(Math.floor((boxWidth - 26) / 2))}VOID Terminal v1.0 - Ready${' '.repeat(Math.ceil((boxWidth - 26) / 2))}║\x1b[0m`);
+          term.writeln(`\x1b[1;32m╚${padding}╝\x1b[0m`);
           term.writeln('');
 
           // Cleanup
@@ -122,7 +125,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(
       <div
         ref={containerRef}
         className="w-full h-full bg-black"
-        style={{ minHeight: '200px' }}
+        style={{ minHeight: '250px' }}
       />
     );
   }
